@@ -1,0 +1,148 @@
+────────────────────────────────────────
+MVP Tech Doc.md
+────────────────────────────────────────
+
+Project: CareerNest – MVP Technical Documentation
+
+1. MVP Objective
+
+Deliver a stable, secure, production-ready SaaS TP Cell platform covering:
+
+* Multi-tenant isolation
+* Core placement lifecycle
+* Company drive management
+* Application workflow
+* Student profile + resume upload
+* Basic analytics dashboard
+
+Exclude (Phase 2):
+
+* AI ranking
+* Calendar sync
+* Company rating system
+* Advanced exports
+
+2. MVP Feature Scope
+
+Included:
+
+* Tenant onboarding (Super Admin)
+* Company onboarding (TPO)
+* Drive creation + eligibility filtering
+* Student applications
+* Hiring stage workflow
+* Course creation + enrollment
+* Announcements
+* Placement analytics (basic aggregation)
+
+3. Data Models (MVP)
+
+Tenant:
+
+* id
+* name
+* subdomain
+* subscriptionPlan
+* status
+
+User:
+
+* id
+* tenantId
+* role
+* email
+* department (optional)
+* status
+
+Student:
+
+* userId
+* tenantId
+* department
+* CGPA
+* backlogs
+* resumeFileId
+
+Company:
+
+* id
+* tenantId
+* name
+* contactInfo
+* status
+
+Drive:
+
+* id
+* tenantId
+* companyId
+* jobRole
+* CTC
+* eligibilityRules
+* deadline
+* status
+
+Application:
+
+* id
+* tenantId
+* driveId
+* studentId
+* stage
+* timestamps
+
+4. Application Workflow (MVP)
+
+Stages:
+Applied → Under Review → Shortlisted → Interview Scheduled → Selected / Rejected
+
+State transitions validated at backend.
+Only company or TPO can modify stage after submission.
+
+5. API Structure
+
+Auth:
+POST /login
+POST /logout
+
+Tenant:
+POST /tenants
+GET /tenants
+
+Company:
+POST /companies
+POST /companies/:id/drives
+
+Drive:
+GET /drives
+POST /drives
+PATCH /drives/:id
+
+Application:
+POST /applications
+PATCH /applications/:id/stage
+
+All routes protected via:
+
+* Auth middleware
+* Tenant resolution middleware
+* Role validation middleware
+
+6. Performance Requirements
+
+* <2s average response
+* Pagination default limit 20
+* Indexing on:
+
+  * tenantId
+  * driveId
+  * companyId
+  * studentId
+
+7. Deployment
+
+* Appwrite Cloud (Pro)
+* Node server deployed on managed hosting
+* Environment-based configuration
+* CI/CD via GitHub Actions
+

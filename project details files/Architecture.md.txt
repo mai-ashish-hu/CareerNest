@@ -1,0 +1,123 @@
+────────────────────────────────────────
+Architecture.md
+────────────────────────────────────────
+
+Project: CareerNest – TP Cell Management Platform
+
+1. Architectural Style
+
+CareerNest follows a multi-tenant SaaS architecture with strict tenant isolation at the database query layer. Each college operates as a logically isolated tenant within a shared infrastructure.
+
+Architecture pattern:
+
+* Multi-tenant (logical isolation via Tenant ID)
+* Modular monolith (initially) with clear domain separation
+* API-first backend
+* Role-Based Access Control (RBAC) enforced at API and data layers
+
+2. High-Level Architecture
+
+Client Layer
+
+* Remix.js frontend (SSR + nested routing)
+* Tailwind CSS UI
+* Role-aware routing (Super Admin, TPO, Assistant, Student, Company)
+
+API Layer
+
+* Express.js REST API
+* Zod schema validation
+* Centralized middleware for:
+
+  * Tenant resolution
+  * Role enforcement
+  * Permission checks
+  * Audit logging
+
+Backend Services (Appwrite Cloud Pro)
+
+* Database (NoSQL collections)
+* Authentication (Appwrite Auth)
+* Storage (Encrypted resume/document storage)
+* RBAC enforcement
+* Background jobs (queue + email service)
+
+3. Multi-Tenant Model
+
+Tenant Identification Strategy:
+
+* Each record contains a mandatory tenantId field.
+* Every API request resolves tenantId from:
+
+  * Subdomain (college.example.com), or
+  * Auth token metadata.
+
+Isolation Enforcement:
+
+* All queries filtered by tenantId.
+* No cross-tenant joins.
+* TenantId indexed in all collections.
+
+Collections (Logical Design):
+
+* Tenants
+* Users
+* Students
+* Companies
+* Drives
+* Applications
+* Courses
+* Announcements
+* PlacementRecords
+* AuditLogs
+
+4. Role-Based Access Control (RBAC)
+
+Roles:
+
+* Super Admin (global)
+* TPO (tenant-wide)
+* TPO Assistant (department-scoped)
+* Student (self-scoped)
+* Company (drive-scoped)
+
+Enforcement:
+
+* Appwrite RBAC for resource-level control.
+* Express middleware for route-level enforcement.
+* Query-level scoping for department and company isolation.
+
+5. Portal Separation
+
+All portals share the same backend but use role-based routing:
+
+* Super Admin Portal → Global access
+* College/TPO Portal → Tenant-scoped
+* Student Portal → Self-scoped
+* Company Portal → Drive-scoped
+
+No shared UI states across roles.
+
+6. Security Controls
+
+* HTTPS enforced
+* Token-based sessions
+* Resume encryption via Appwrite Storage
+* Audit logs for:
+
+  * Login attempts
+  * Status updates
+  * Credential generation
+* Forced re-authentication for sensitive actions
+
+7. Scalability Strategy
+
+* Indexed tenantId, driveId, companyId
+* Pagination for high-volume collections
+* Async job queue for:
+
+  * Email notifications
+  * Placement stat recalculation
+* Target: 500 concurrent users per tenant
+* Sub-2s response SLA on core APIs
+

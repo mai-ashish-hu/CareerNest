@@ -1,0 +1,22 @@
+{
+  "name": "careernest",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev --workspace=@careernest/server",
+    "dev:admin": "npm run dev --workspace=@careernest/web-admin",
+    "dev:college": "npm run dev --workspace=@careernest/web-college",
+    "dev:student": "npm run dev --workspace=@careernest/web-student",
+    "dev:company": "npm run dev --workspace=@careernest/web-company",
+    "build": "npm run build --workspaces --if-present",
+    "type-check": "npm run type-check --workspaces --if-present",
+    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist apps/*/build"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

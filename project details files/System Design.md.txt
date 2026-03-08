@@ -1,0 +1,97 @@
+────────────────────────────────────────
+System Design.md
+────────────────────────────────────────
+
+1. System Overview
+
+CareerNest is designed as a multi-tenant SaaS platform built on:
+
+Frontend: Remix.js
+Backend: Express.js
+Managed Backend Services: Appwrite Cloud Pro
+
+The system separates concerns into:
+
+* Presentation layer
+* API layer
+* Data layer
+* Background processing layer
+
+2. Request Lifecycle
+
+3. User logs in via Appwrite Auth.
+
+4. Token issued with role + tenant metadata.
+
+5. Request hits Express server.
+
+6. Middleware extracts:
+
+   * tenantId
+   * role
+
+7. Permission validation executed.
+
+8. Query executed with mandatory tenantId filter.
+
+9. Response returned.
+
+10. Database Strategy
+
+NoSQL model optimized for:
+
+* Tenant isolation
+* High read frequency
+* Write bursts during placement season
+
+Indexes:
+
+* tenantId
+* driveId
+* application stage
+* companyId
+* deadline
+
+4. Concurrency Handling
+
+* Optimistic UI updates
+* Backend stage validation
+* Async job queue for:
+
+  * Email notifications
+  * Placement record recalculation
+
+5. Scaling Model
+
+Horizontal scaling:
+
+* Stateless API servers
+* Appwrite managed scaling
+
+Vertical scaling:
+
+* Plan upgrade under load
+
+6. Failure Handling
+
+* Retry logic for background jobs
+* Centralized logging
+* Error boundary in frontend
+* Rate limiting for abusive usage
+
+7. Future Microservice Decomposition (Post-MVP)
+
+* Analytics service
+* Notification service
+* AI ranking service
+* Billing service
+
+8. Pre-Launch Testing
+
+* Load test: 500 concurrent users per tenant
+* Simulated peak:
+
+  * 5,000 applications/hour
+* Stress test resume upload limits
+
+End of documents.

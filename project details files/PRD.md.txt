@@ -1,0 +1,79 @@
+────────────────────────────────────────
+PRD.md
+────────────────────────────────────────
+
+Product: CareerNest – TP Cell Management Platform
+
+1. Product Vision
+
+CareerNest aims to become the default SaaS infrastructure for college placement management in India by digitizing and structuring the entire hiring lifecycle.
+
+2. Target Users
+
+Primary:
+
+* Colleges (TPO offices)
+* Students (internal + external)
+* Companies (HR teams)
+
+3. Core Problems
+
+For TPO:
+
+* Manual spreadsheet tracking
+* Email overload
+* Lack of structured analytics
+
+For Students:
+
+* No visibility into application stages
+* Fragmented placement communication
+
+For Companies:
+
+* Manual candidate coordination
+* Lack of structured filtering tools
+
+4. Key Value Propositions
+
+* Full company portal (differentiator)
+* Strict multi-tenant architecture
+* Role-scoped dashboards
+* Structured hiring workflow
+
+5. Functional Requirements
+
+FR1: Tenant Isolation
+System must prevent cross-college access at all levels.
+
+FR2: Role-Based Permissions
+Each user sees only data within their role scope.
+
+FR3: Drive Lifecycle
+Company must configure eligibility before drive activation.
+
+FR4: Application Tracking
+Students must see real-time status.
+
+FR5: Analytics
+TPO must see:
+
+* Placement %
+* Department stats
+* Drive conversion metrics
+
+6. Non-Functional Requirements
+
+* Response time <2 seconds
+* 500 concurrent users per tenant
+* HTTPS-only
+* Audit logging enabled
+* Resume encryption
+
+7. Success Metrics
+
+* 80% reduction in spreadsheet usage
+* <10% support tickets for data inconsistency
+* 90% student login adoption
+* 95% uptime SLA
+

@@ -1,0 +1,19 @@
+{
+    "name": "@careernest/ui",
+    "version": "1.0.0",
+    "private": true,
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "peerDependencies": {
+        "react": "^18.0.0",
+        "react-dom": "^18.0.0"
+    },
+    "dependencies": {
+        "clsx": "^2.1.0",
+        "lucide-react": "^0.468.0"
+    },
+    "devDependencies": {
+        "@types/react": "^18.3.0",
+        "typescript": "^5.4.0"
+    }
+}

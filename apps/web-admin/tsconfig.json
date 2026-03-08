@@ -1,0 +1,47 @@
+﻿{
+    "extends": "../../packages/config/typescript/base.json",
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "jsx": "react-jsx",
+        "lib": [
+            "DOM",
+            "DOM.Iterable",
+            "ES2022"
+        ],
+        "outDir": "./dist",
+        "rootDir": "../..",
+        "baseUrl": ".",
+        "paths": {
+            "~/*": [
+                "./app/*"
+            ],
+            "@careernest/shared": [
+                "../../packages/shared/src"
+            ],
+            "@careernest/shared/*": [
+                "../../packages/shared/src/*"
+            ],
+            "@careernest/ui": [
+                "../../packages/ui/src"
+            ],
+            "@careernest/ui/*": [
+                "../../packages/ui/src/*"
+            ],
+            "@careernest/lib": [
+                "../../packages/lib/src"
+            ],
+            "@careernest/lib/*": [
+                "../../packages/lib/src/*"
+            ]
+        },
+        "noEmit": true,
+        "isolatedModules": true
+    },
+    "include": [
+        "app/**/*",
+        "env.d.ts",
+        "vite.config.ts"
+    ]
+}
