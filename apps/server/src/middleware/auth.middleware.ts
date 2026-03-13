@@ -11,6 +11,7 @@ interface JWTPayload {
     role: Role;
     tenantId?: string | null;
     companyId?: string | null;
+    department?: string | null;
 }
 
 /**
@@ -38,6 +39,7 @@ export async function authMiddleware(req: Request, _res: Response, next: NextFun
             role: decoded.role,
             tenantId: decoded.tenantId,
             companyId: decoded.companyId,
+            department: decoded.department ?? undefined,
         };
 
         next();

@@ -1,17 +1,13 @@
 import {
-    FileText,
     Download,
     Building2,
-    Users,
-    Briefcase,
-    GraduationCap,
     BarChart3,
     Calendar,
 } from 'lucide-react';
-import { Card, Button, StatCard } from '@careernest/ui';
+import { Card, Button } from '@careernest/ui';
 import type { MetaFunction, LoaderFunctionArgs } from '@remix-run/node';
 import { json } from '@remix-run/node';
-import { useLoaderData, Link } from '@remix-run/react';
+import { useLoaderData } from '@remix-run/react';
 import { requireUserSession } from '~/auth.server';
 import { api } from '@careernest/lib';
 
@@ -52,6 +48,21 @@ export async function loader({ request }: LoaderFunctionArgs) {
     }
 }
 
+function exportToCsv(filename: string, rows: { label: string; value: string | number }[]) {
+    const csvContent = [
+        'Metric,Value',
+        ...rows.map((r) => `"${String(r.label).replace(/"/g, '""')}","${String(r.value).replace(/"/g, '""')}"`),
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${filename}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+}
+
 export default function AdminReports() {
     const { stats, tenantStats } = useLoaderData<typeof loader>() as any;
 
@@ -61,6 +72,7 @@ export default function AdminReports() {
             description: 'Overall platform statistics including colleges, users, placements',
             icon: BarChart3,
             color: 'text-primary-600 bg-primary-50',
+            csvName: 'platform-summary',
             data: [
                 { label: 'Total Colleges', value: stats.totalTenants },
                 { label: 'Total Users', value: stats.totalUsers },
@@ -77,6 +89,7 @@ export default function AdminReports() {
             description: 'Detailed breakdown of each college\'s performance metrics',
             icon: Building2,
             color: 'text-violet-600 bg-violet-50',
+            csvName: 'college-performance',
             data: tenantStats.map((t: TenantStat) => ({
                 label: t.tenantName,
                 value: `${t.totalPlacements} placements, ${t.totalStudents} students`,
@@ -114,9 +127,20 @@ export default function AdminReports() {
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-1 text-xs text-surface-400">
-                                        <Calendar size={12} />
-                                        <span>Generated: {new Date().toLocaleDateString()}</span>
+                                    <div className="flex items-center gap-3">
+                                        <span className="flex items-center gap-1 text-xs text-surface-400">
+                                            <Calendar size={12} />
+                                            Generated: {new Date().toLocaleDateString()}
+                                        </span>
+                                        {report.data.length > 0 && (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => exportToCsv(report.csvName, report.data)}
+                                            >
+                                                <Download size={14} /> Export CSV
+                                            </Button>
+                                        )}
                                     </div>
                                 </div>
 

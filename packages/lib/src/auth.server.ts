@@ -1,13 +1,5 @@
 import { createCookieSessionStorage, redirect } from '@remix-run/node';
-
-export interface SessionUser {
-    id: string;
-    role: string;
-    name: string;
-    email: string;
-    tenantId?: string | null;
-    companyId?: string | null;
-}
+import type { SessionUser } from './auth.types';
 
 /**
  * Factory that creates portal-specific auth helpers.

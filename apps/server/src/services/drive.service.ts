@@ -165,6 +165,19 @@ export class DriveService {
 
         return await databases.updateDocument(this.databaseId, this.collectionId, driveId, updateData);
     }
+
+    /**
+     * Permanently deletes a drive document after verifying tenant/company ownership.
+     *
+     * NOTE: Cascade deletion of applications is intentionally not performed here.
+     * Existing application documents referencing this driveId will remain in the
+     * database but will no longer be able to resolve drive details. If cascade
+     * deletion is required in the future, add it here before the deleteDocument call.
+     */
+    async delete(driveId: string, tenantId: string, companyId?: string | null) {
+        await this.getById(driveId, tenantId, companyId);
+        await databases.deleteDocument(this.databaseId, this.collectionId, driveId);
+    }
 }
 
 export const driveService = new DriveService();

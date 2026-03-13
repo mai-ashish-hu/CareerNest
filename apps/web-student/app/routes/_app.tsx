@@ -7,7 +7,7 @@ import { requireUserSession } from '~/auth.server';
 import { Sidebar } from '~/components/Sidebar';
 import { Header } from '~/components/Header';
 import { api } from '@careernest/lib';
-import { LayoutDashboard, UserCircle, Briefcase, FileText, Megaphone, Settings, Search, MessagesSquare } from 'lucide-react';
+import { LayoutDashboard, UserCircle, Briefcase, FileText, Megaphone, Settings, Search, MessagesSquare, BookOpen, Video } from 'lucide-react';
 
 const links = [
     { to: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
@@ -16,6 +16,8 @@ const links = [
     { to: '/chat', label: 'Campus Chat', icon: <MessagesSquare size={20} /> },
     { to: '/drives', label: 'Drives', icon: <Briefcase size={20} /> },
     { to: '/applications', label: 'Applications', icon: <FileText size={20} /> },
+    { to: '/courses', label: 'Courses', icon: <BookOpen size={20} /> },
+    { to: '/interviews', label: 'Interviews', icon: <Video size={20} /> },
     { to: '/announcements', label: 'Announcements', icon: <Megaphone size={20} /> },
     { to: '/settings', label: 'Settings', icon: <Settings size={20} /> },
 ];

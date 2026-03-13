@@ -71,18 +71,33 @@ export async function loader({ request }: LoaderFunctionArgs) {
         ? String(analytics.placementPercentage)
         : (totalStudents > 0 ? ((totalPlacements / totalStudents) * 100).toFixed(1) : '0.0');
 
+    // Build per-department CTC stats from drives
+    const deptCTCMap = new Map<string, number[]>();
+    for (const d of (drivesRes.data || [])) {
+        const salary = d.salary ?? 0;
+        if (salary <= 0) continue;
+        const depts: string[] = Array.isArray(d.department) ? d.department : (d.department ? [d.department] : []);
+        for (const dept of depts) {
+            if (!deptCTCMap.has(dept)) deptCTCMap.set(dept, []);
+            deptCTCMap.get(dept)!.push(salary);
+        }
+    }
+
     // Department-wise stats from analytics endpoint (or fallback from students)
     const students = studentsRes.data || [];
     let deptStats: DepartmentStat[] = [];
     if (analytics.departmentStats && analytics.departmentStats.length > 0) {
-        deptStats = analytics.departmentStats.map((d: any): DepartmentStat => ({
-            dept: d.department,
-            total: d.total,
-            placed: d.placed,
-            percentage: d.percentage,
-            avgCTC: 0,
-            highestCTC: 0,
-        }));
+        deptStats = analytics.departmentStats.map((d: any): DepartmentStat => {
+            const ctcs = deptCTCMap.get(d.department) || [];
+            return {
+                dept: d.department,
+                total: d.total,
+                placed: d.placed,
+                percentage: d.percentage,
+                avgCTC: ctcs.length > 0 ? Math.round(ctcs.reduce((a: number, c: number) => a + c, 0) / ctcs.length) : 0,
+                highestCTC: ctcs.length > 0 ? Math.max(...ctcs) : 0,
+            };
+        });
     } else {
         // Fallback: build from student data
         const deptMap = new Map<string, { total: number; placed: number }>();
@@ -93,21 +108,41 @@ export async function loader({ request }: LoaderFunctionArgs) {
             d.total++;
             if (s.isPlaced === true) d.placed++;
         }
-        deptStats = Array.from(deptMap.entries()).map(([dept, d]): DepartmentStat => ({
-            dept,
-            total: d.total,
-            placed: d.placed,
-            percentage: d.total > 0 ? Math.round((d.placed / d.total) * 100 * 10) / 10 : 0,
-            avgCTC: 0,
-            highestCTC: 0,
-        }));
+        deptStats = Array.from(deptMap.entries()).map(([dept, d]): DepartmentStat => {
+            const ctcs = deptCTCMap.get(dept) || [];
+            return {
+                dept,
+                total: d.total,
+                placed: d.placed,
+                percentage: d.total > 0 ? Math.round((d.placed / d.total) * 100 * 10) / 10 : 0,
+                avgCTC: ctcs.length > 0 ? Math.round(ctcs.reduce((a: number, c: number) => a + c, 0) / ctcs.length) : 0,
+                highestCTC: ctcs.length > 0 ? Math.max(...ctcs) : 0,
+            };
+        });
     }
     deptStats.sort((a, b) => b.percentage - a.percentage);
 
     // Top recruiters from drive conversion data
+    const companyDriveMap = new Map<string, number[]>();
+    for (const d of (drivesRes.data || [])) {
+        const companyRef = d.companies;
+        const companyName = Array.isArray(companyRef)
+            ? (companyRef[0]?.name || '')
+            : (companyRef?.name || d.companyName || '');
+        if (!companyName) continue;
+        const salary = d.salary ?? 0;
+        if (salary > 0) {
+            if (!companyDriveMap.has(companyName)) companyDriveMap.set(companyName, []);
+            companyDriveMap.get(companyName)!.push(salary);
+        }
+    }
+
     const topRecruiters: RecruiterStat[] = (analytics.driveConversion || [])
         .filter((d: any) => d.selected > 0)
-        .map((d: any): RecruiterStat => ({ company: d.company, hired: d.selected, avgCTC: 0 }))
+        .map((d: any): RecruiterStat => {
+            const ctcs = companyDriveMap.get(d.company) || [];
+            return { company: d.company, hired: d.selected, avgCTC: ctcs.length > 0 ? Math.round(ctcs.reduce((a: number, c: number) => a + c, 0) / ctcs.length) : 0 };
+        })
         .sort((a: any, b: any) => b.hired - a.hired)
         .slice(0, 6);
 
@@ -142,9 +177,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
             .slice(0, 5);
     }
 
-    // CTC overview from drives data (since we don't have raw placement CTC data)
+    // CTC overview from drives data (using salary field)
     const allCTCs = (drivesRes.data || [])
-        .map((d: any) => d.ctc ?? d.CTC ?? 0)
+        .map((d: any) => d.salary ?? d.ctc ?? d.CTC ?? 0)
         .filter((c: number) => c > 0)
         .sort((a: number, b: number) => a - b);
     const highestCTC = allCTCs.length > 0 ? allCTCs[allCTCs.length - 1] : 0;
@@ -280,8 +315,14 @@ export default function Analytics() {
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <div className="flex-1">
-                                        <div className="flex items-center gap-0 h-2 rounded-full overflow-hidden">
-                                            <div className="h-full bg-blue-400" style={{ width: `${(drive.applied / drive.applied) * 100}%` }} />
+                                        <div className="flex items-center gap-0 h-2 rounded-full overflow-hidden bg-surface-100">
+                                            {drive.applied > 0 && (
+                                                <>
+                                                    <div className="h-full bg-emerald-500" style={{ width: `${(drive.selected / drive.applied) * 100}%` }} />
+                                                    <div className="h-full bg-amber-400" style={{ width: `${((drive.shortlisted - drive.selected) / drive.applied) * 100}%` }} />
+                                                    <div className="h-full bg-blue-300" style={{ width: `${((drive.applied - drive.shortlisted) / drive.applied) * 100}%` }} />
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

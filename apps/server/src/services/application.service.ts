@@ -5,6 +5,7 @@ import { NotFoundError, ConflictError } from '../utils/errors';
 import { ApplicationStage } from '@careernest/shared';
 import { scoringService } from './scoring.service';
 import { driveService } from './drive.service';
+import { jobQueue } from '../jobs/queue';
 
 export class ApplicationService {
     private readonly databaseId = env.APPWRITE_DATABASE_ID;
@@ -167,7 +168,42 @@ export class ApplicationService {
             await this.createPlacementRecord(tenantId, application);
         }
 
+        // Queue stage-update email notification
+        this.queueStageUpdateEmail(application, newStage).catch((err) =>
+            console.error('[ApplicationService] Failed to queue stage email:', err)
+        );
+
         return updated;
+    }
+
+    private async queueStageUpdateEmail(application: Record<string, unknown>, newStage: string) {
+        try {
+            const [student, drive] = await Promise.all([
+                databases.getDocument(this.databaseId, env.COLLECTION_STUDENTS, application.studentId as string),
+                databases.getDocument(this.databaseId, env.COLLECTION_DRIVES, application.driveId as string),
+            ]);
+
+            const companyRef = (drive as any).companies;
+            const companyName = Array.isArray(companyRef)
+                ? (companyRef[0]?.name || companyRef[0]?.companyName || 'Company')
+                : (companyRef?.name || companyRef?.companyName || 'Company');
+
+            const studentEmail = (student as any).email;
+            const studentName = (student as any).name || 'Student';
+            const driveName = (drive as any).jobRole || (drive as any).title || 'Drive';
+
+            if (studentEmail) {
+                await jobQueue.add('send-stage-update-email', {
+                    studentEmail,
+                    studentName,
+                    driveName,
+                    companyName,
+                    newStage,
+                });
+            }
+        } catch (err) {
+            console.error('[ApplicationService] Could not resolve email data:', err);
+        }
     }
 
     private async createPlacementRecord(tenantId: string, application: Record<string, unknown>) {

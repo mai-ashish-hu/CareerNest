@@ -85,11 +85,6 @@ export const sendCampusChatMessageSchema = z.object({
     body: z.string().trim().min(1, 'Message cannot be empty').max(1000),
 });
 
-export const createCourseSchema = z.object({
-    name: z.string().min(2, 'Course name must be at least 2 characters').max(200),
-    department: z.string().min(2, 'Department name required').max(100),
-});
-
 export const createAnnouncementSchema = z.object({
     title: z.string().min(2, 'Title must be at least 2 characters').max(200),
     body: z.string().min(1, 'Body is required').max(5000),
@@ -98,6 +93,5 @@ export const createAnnouncementSchema = z.object({
 export type UpdateStudentSchemaInput = z.infer<typeof updateStudentSchema>;
 export type UpdateStudentProfileSchemaInput = z.infer<typeof updateStudentProfileSchema>;
 export type UploadStudentProfileAssetSchemaInput = z.infer<typeof uploadStudentProfileAssetSchema>;
-export type CreateCourseSchemaInput = z.infer<typeof createCourseSchema>;
 export type CreateAnnouncementSchemaInput = z.infer<typeof createAnnouncementSchema>;
 export type SendCampusChatMessageSchemaInput = z.infer<typeof sendCampusChatMessageSchema>;

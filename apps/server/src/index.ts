@@ -19,6 +19,8 @@ import courseRoutes from './routes/course.routes';
 import announcementRoutes from './routes/announcement.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import adminRoutes from './routes/admin.routes';
+import interviewRoutes from './routes/interview.routes';
+import interviewSignalRoutes from './routes/interview-signal.routes';
 
 // Jobs
 import { registerEmailJobs } from './jobs/emailJob';
@@ -67,6 +69,8 @@ app.use('/api/v1/courses', courseRoutes);
 app.use('/api/v1/announcements', announcementRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/interviews', interviewRoutes);
+app.use('/api/v1/interview-signal', interviewSignalRoutes);
 
 // ─── 404 Handler ───
 app.use((_req, res) => {

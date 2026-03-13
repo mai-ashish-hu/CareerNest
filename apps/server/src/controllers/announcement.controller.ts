@@ -48,6 +48,34 @@ export class AnnouncementController {
         }
     }
 
+    async update(req: Request, res: Response, next: NextFunction) {
+        try {
+            const announcement = await databases.getDocument(
+                env.APPWRITE_DATABASE_ID,
+                env.COLLECTION_ANNOUNCEMENTS,
+                req.params.id
+            );
+
+            if (announcement.tenantId !== req.tenantId) {
+                throw new NotFoundError('Announcement');
+            }
+
+            const updateData: Record<string, unknown> = {};
+            if (req.body.title !== undefined) updateData.title = req.body.title;
+            if (req.body.body !== undefined) updateData.body = req.body.body;
+
+            const updated = await databases.updateDocument(
+                env.APPWRITE_DATABASE_ID,
+                env.COLLECTION_ANNOUNCEMENTS,
+                req.params.id,
+                updateData
+            );
+            sendSuccess(res, updated);
+        } catch (error) {
+            next(error);
+        }
+    }
+
     async delete(req: Request, res: Response, next: NextFunction) {
         try {
             const announcement = await databases.getDocument(

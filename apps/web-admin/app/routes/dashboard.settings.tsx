@@ -1,30 +1,43 @@
 import { useState } from 'react';
 import {
-    Settings,
     Globe,
     Mail,
     Shield,
-    Database,
-    Key,
-    Server,
-    Bell,
-    Palette,
     ToggleLeft,
-    ToggleRight,
-    Save,
     AlertTriangle,
-    CheckCircle,
-    Monitor,
+    Info,
     Wrench,
 } from 'lucide-react';
-import { Card, Button } from '@careernest/ui';
-import type { MetaFunction } from '@remix-run/node';
+import { Card } from '@careernest/ui';
+import type { MetaFunction, LoaderFunctionArgs } from '@remix-run/node';
+import { json } from '@remix-run/node';
+import { useLoaderData } from '@remix-run/react';
+import { requireUserSession } from '~/auth.server';
+import { api } from '@careernest/lib';
 
 export const meta: MetaFunction = () => [
     { title: 'Settings – Super Admin – CareerNest' },
 ];
 
+export async function loader({ request }: LoaderFunctionArgs) {
+    const { token } = await requireUserSession(request);
+
+    const statsRes = await api.admin.stats(token).catch(() => ({ data: {} })) as { data: Record<string, number> };
+    const stats = statsRes.data || {};
+
+    return json({
+        stats: {
+            totalTenants: stats.totalTenants ?? 0,
+            totalUsers: stats.totalUsers ?? 0,
+            totalStudents: stats.totalStudents ?? 0,
+            totalCompanies: stats.totalCompanies ?? 0,
+            totalDrives: stats.totalDrives ?? 0,
+        },
+    });
+}
+
 export default function AdminSettings() {
+    const { stats } = useLoaderData<typeof loader>() as { stats: Record<string, number> };
     const [activeTab, setActiveTab] = useState('general');
 
     const tabs = [
@@ -84,45 +97,26 @@ export default function AdminSettings() {
                                     </h3>
                                 </div>
 
+                                <EnvNotice />
+
                                 <div className="space-y-4">
-                                    <div>
-                                        <label className="form-label">Platform Name</label>
-                                        <input
-                                            type="text"
-                                            defaultValue="CareerNest"
-                                            className="form-input"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="form-label">Platform URL</label>
-                                        <input
-                                            type="text"
-                                            defaultValue="https://careernest.com"
-                                            className="form-input"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="form-label">Support Email</label>
-                                        <input
-                                            type="email"
-                                            defaultValue="support@careernest.com"
-                                            className="form-input"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="form-label">Default Timezone</label>
-                                        <select className="form-input">
-                                            <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
-                                            <option value="UTC">UTC</option>
-                                            <option value="America/New_York">America/New_York (EST)</option>
-                                        </select>
-                                    </div>
+                                    <ReadOnlyField label="Platform Name" value="CareerNest" />
+                                    <ReadOnlyField label="Platform URL" value="https://careernest.com" />
+                                    <ReadOnlyField label="Support Email" value="support@careernest.com" />
+                                    <ReadOnlyField label="Default Timezone" value="Asia/Kolkata (IST)" />
                                 </div>
 
-                                <div className="flex justify-end pt-4 border-t border-surface-100">
-                                    <Button>
-                                        <Save size={16} /> Save Changes
-                                    </Button>
+                                <div className="p-4 bg-surface-50 rounded-xl space-y-3">
+                                    <h4 className="text-sm font-medium text-surface-700">
+                                        Platform Overview
+                                    </h4>
+                                    <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+                                        <StatRow label="Colleges" value={stats.totalTenants} />
+                                        <StatRow label="Total Users" value={stats.totalUsers} />
+                                        <StatRow label="Students" value={stats.totalStudents} />
+                                        <StatRow label="Companies" value={stats.totalCompanies} />
+                                        <StatRow label="Active Drives" value={stats.totalDrives} />
+                                    </div>
                                 </div>
                             </div>
                         </Card>
@@ -141,41 +135,17 @@ export default function AdminSettings() {
                                 <div className="bg-amber-50 rounded-xl p-4 text-sm text-amber-700 flex items-start gap-2">
                                     <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
                                     <span>
-                                        SMTP settings are configured via environment variables.
-                                        Changes here require a server restart.
+                                        SMTP settings are configured via environment variables
+                                        on the server. They cannot be changed from this panel.
                                     </span>
                                 </div>
 
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="form-label">SMTP Host</label>
-                                            <input
-                                                type="text"
-                                                placeholder="smtp.example.com"
-                                                className="form-input"
-                                                disabled
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="form-label">SMTP Port</label>
-                                            <input
-                                                type="number"
-                                                placeholder="587"
-                                                className="form-input"
-                                                disabled
-                                            />
-                                        </div>
+                                        <ReadOnlyField label="SMTP Host" value="Configured via SMTP_HOST env" />
+                                        <ReadOnlyField label="SMTP Port" value="Configured via SMTP_PORT env" />
                                     </div>
-                                    <div>
-                                        <label className="form-label">From Address</label>
-                                        <input
-                                            type="text"
-                                            placeholder="CareerNest <noreply@careernest.com>"
-                                            className="form-input"
-                                            disabled
-                                        />
-                                    </div>
+                                    <ReadOnlyField label="From Address" value="Configured via SMTP_FROM env" />
                                 </div>
 
                                 <div className="p-4 bg-surface-50 rounded-xl">
@@ -214,57 +184,38 @@ export default function AdminSettings() {
                                 <div className="flex items-center gap-3 mb-2">
                                     <Shield size={20} className="text-primary-600" />
                                     <h3 className="font-semibold text-surface-900">
-                                        Security Settings
+                                        Security Policies
                                     </h3>
                                 </div>
 
+                                <EnvNotice />
+
                                 <div className="space-y-4">
-                                    <SettingToggle
+                                    <SettingDisplay
                                         label="Two-Factor Authentication for TPOs"
                                         description="Require 2FA for all TPO accounts"
-                                        defaultEnabled={false}
+                                        enabled={false}
                                     />
-                                    <SettingToggle
+                                    <SettingDisplay
                                         label="Force Password Reset on First Login"
                                         description="Require users to change password after first login"
-                                        defaultEnabled={true}
+                                        enabled={true}
                                     />
-                                    <SettingToggle
+                                    <SettingDisplay
                                         label="Login IP Restriction"
                                         description="Restrict logins to whitelisted IPs for TPOs"
-                                        defaultEnabled={false}
+                                        enabled={false}
                                     />
-                                    <SettingToggle
+                                    <SettingDisplay
                                         label="Audit Log Retention"
                                         description="Keep audit logs for 90 days"
-                                        defaultEnabled={true}
+                                        enabled={true}
                                     />
                                 </div>
 
-                                <div>
-                                    <label className="form-label">Session Timeout (minutes)</label>
-                                    <input
-                                        type="number"
-                                        defaultValue={60}
-                                        className="form-input w-32"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="form-label">
-                                        Rate Limit (requests per 15 min)
-                                    </label>
-                                    <input
-                                        type="number"
-                                        defaultValue={100}
-                                        className="form-input w-32"
-                                    />
-                                </div>
-
-                                <div className="flex justify-end pt-4 border-t border-surface-100">
-                                    <Button>
-                                        <Save size={16} /> Save Changes
-                                    </Button>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <ReadOnlyField label="Session Timeout" value="60 minutes" />
+                                    <ReadOnlyField label="Rate Limit" value="100 requests / 15 min" />
                                 </div>
                             </div>
                         </Card>
@@ -280,53 +231,16 @@ export default function AdminSettings() {
                                     </h3>
                                 </div>
 
-                                <p className="text-sm text-surface-400">
-                                    Toggle features across the platform. Changes affect all
-                                    colleges.
-                                </p>
+                                <EnvNotice />
 
                                 <div className="space-y-4">
-                                    <SettingToggle
-                                        label="Student Self-Registration"
-                                        description="Allow students to register without TPO invitation"
-                                        defaultEnabled={false}
-                                    />
-                                    <SettingToggle
-                                        label="Company Self-Registration"
-                                        description="Allow companies to register and post drives"
-                                        defaultEnabled={false}
-                                    />
-                                    <SettingToggle
-                                        label="Resume Uploads"
-                                        description="Allow students to upload resumes"
-                                        defaultEnabled={true}
-                                    />
-                                    <SettingToggle
-                                        label="Email Notifications"
-                                        description="Send email notifications for stage changes"
-                                        defaultEnabled={true}
-                                    />
-                                    <SettingToggle
-                                        label="Multi-College Company Access"
-                                        description="Allow companies to post in multiple colleges"
-                                        defaultEnabled={false}
-                                    />
-                                    <SettingToggle
-                                        label="Advanced Analytics"
-                                        description="Enable advanced analytics dashboards for TPOs"
-                                        defaultEnabled={true}
-                                    />
-                                    <SettingToggle
-                                        label="Placement Certificate Generation"
-                                        description="Auto-generate placement certificates"
-                                        defaultEnabled={false}
-                                    />
-                                </div>
-
-                                <div className="flex justify-end pt-4 border-t border-surface-100">
-                                    <Button>
-                                        <Save size={16} /> Save Changes
-                                    </Button>
+                                    <SettingDisplay label="Student Self-Registration" description="Allow students to register without TPO invitation" enabled={false} />
+                                    <SettingDisplay label="Company Self-Registration" description="Allow companies to register and post drives" enabled={false} />
+                                    <SettingDisplay label="Resume Uploads" description="Allow students to upload resumes" enabled={true} />
+                                    <SettingDisplay label="Email Notifications" description="Send email notifications for stage changes" enabled={true} />
+                                    <SettingDisplay label="Multi-College Company Access" description="Allow companies to post in multiple colleges" enabled={false} />
+                                    <SettingDisplay label="Advanced Analytics" description="Enable advanced analytics dashboards for TPOs" enabled={true} />
+                                    <SettingDisplay label="Placement Certificate Generation" description="Auto-generate placement certificates" enabled={false} />
                                 </div>
                             </div>
                         </Card>
@@ -338,69 +252,36 @@ export default function AdminSettings() {
                                 <div className="flex items-center gap-3 mb-2">
                                     <Wrench size={20} className="text-primary-600" />
                                     <h3 className="font-semibold text-surface-900">
-                                        Maintenance Mode
+                                        System Information
                                     </h3>
-                                </div>
-
-                                <div className="bg-red-50 rounded-xl p-4">
-                                    <div className="flex items-center gap-3 mb-3">
-                                        <AlertTriangle size={20} className="text-red-600" />
-                                        <h4 className="font-semibold text-red-800">
-                                            Danger Zone
-                                        </h4>
-                                    </div>
-                                    <p className="text-sm text-red-600 mb-4">
-                                        Enabling maintenance mode will prevent all users
-                                        (except Super Admins) from accessing the platform.
-                                    </p>
-                                    <SettingToggle
-                                        label="Enable Maintenance Mode"
-                                        description="Show maintenance page to all portal users"
-                                        defaultEnabled={false}
-                                    />
-                                </div>
-
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="form-label">
-                                            Maintenance Message
-                                        </label>
-                                        <textarea
-                                            className="form-input resize-none"
-                                            rows={3}
-                                            defaultValue="We're currently performing scheduled maintenance. Please check back later."
-                                        />
-                                    </div>
                                 </div>
 
                                 <div className="p-4 bg-surface-50 rounded-xl space-y-3">
                                     <h4 className="text-sm font-medium text-surface-700">
-                                        System Information
+                                        Runtime Details
                                     </h4>
                                     <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
-                                        <div className="flex justify-between">
-                                            <span className="text-surface-400">API Version</span>
-                                            <span className="text-surface-700">v1.0.0</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-surface-400">Node.js</span>
-                                            <span className="text-surface-700">v20.x</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-surface-400">Database</span>
-                                            <span className="text-surface-700">Appwrite Cloud</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-surface-400">Environment</span>
-                                            <span className="text-surface-700">Development</span>
-                                        </div>
+                                        <StatRow label="API Version" value="v1.0.0" />
+                                        <StatRow label="Node.js" value="v20.x" />
+                                        <StatRow label="Database" value="Appwrite Cloud" />
+                                        <StatRow label="Environment" value="Development" />
+                                        <StatRow label="Colleges Online" value={stats.totalTenants} />
+                                        <StatRow label="Registered Users" value={stats.totalUsers} />
                                     </div>
                                 </div>
 
-                                <div className="flex justify-end pt-4 border-t border-surface-100">
-                                    <Button>
-                                        <Save size={16} /> Save Changes
-                                    </Button>
+                                <SettingDisplay
+                                    label="Maintenance Mode"
+                                    description="Show maintenance page to all portal users"
+                                    enabled={false}
+                                />
+
+                                <div className="bg-amber-50 rounded-xl p-4 text-sm text-amber-700 flex items-start gap-2">
+                                    <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+                                    <span>
+                                        Maintenance mode toggling requires a server-side configuration change.
+                                        Contact the infrastructure team to enable or disable it.
+                                    </span>
                                 </div>
                             </div>
                         </Card>
@@ -411,35 +292,62 @@ export default function AdminSettings() {
     );
 }
 
-function SettingToggle({
+function EnvNotice() {
+    return (
+        <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-700 flex items-start gap-2">
+            <Info size={16} className="flex-shrink-0 mt-0.5" />
+            <span>
+                These settings are managed via server environment variables
+                and displayed here for reference.
+            </span>
+        </div>
+    );
+}
+
+function ReadOnlyField({ label, value }: { label: string; value: string }) {
+    return (
+        <div>
+            <label className="form-label">{label}</label>
+            <div className="form-input bg-surface-50 text-surface-600 cursor-not-allowed">
+                {value}
+            </div>
+        </div>
+    );
+}
+
+function StatRow({ label, value }: { label: string; value: string | number }) {
+    return (
+        <div className="flex justify-between">
+            <span className="text-surface-400">{label}</span>
+            <span className="text-surface-700 font-medium">{value}</span>
+        </div>
+    );
+}
+
+function SettingDisplay({
     label,
     description,
-    defaultEnabled,
+    enabled,
 }: {
     label: string;
     description: string;
-    defaultEnabled: boolean;
+    enabled: boolean;
 }) {
-    const [enabled, setEnabled] = useState(defaultEnabled);
-
     return (
         <div className="flex items-center justify-between p-4 bg-surface-50 rounded-xl">
             <div>
                 <p className="text-sm font-medium text-surface-800">{label}</p>
                 <p className="text-xs text-surface-400 mt-0.5">{description}</p>
             </div>
-            <button
-                onClick={() => setEnabled(!enabled)}
-                className={`relative w-11 h-6 rounded-full transition-colors ${
-                    enabled ? 'bg-primary-600' : 'bg-surface-300'
+            <span
+                className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                    enabled
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-surface-200 text-surface-500'
                 }`}
             >
-                <span
-                    className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                        enabled ? 'translate-x-[22px]' : 'translate-x-0.5'
-                    }`}
-                />
-            </button>
+                {enabled ? 'Enabled' : 'Disabled'}
+            </span>
         </div>
     );
 }

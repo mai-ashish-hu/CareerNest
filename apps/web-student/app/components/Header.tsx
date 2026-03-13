@@ -33,6 +33,18 @@ function getPageMeta(pathname: string): { title: string; description: string } {
             description: 'Track every stage of your placement journey in one place.',
         };
     }
+    if (pathname.startsWith('/courses')) {
+        return {
+            title: 'Courses',
+            description: 'Learn from curated content shared by your placement cell.',
+        };
+    }
+    if (pathname.startsWith('/interviews')) {
+        return {
+            title: 'Interviews',
+            description: 'View scheduled interviews and join video calls.',
+        };
+    }
     if (pathname.startsWith('/announcements')) {
         return {
             title: 'Announcements',

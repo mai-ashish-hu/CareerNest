@@ -14,6 +14,7 @@ router.use(authMiddleware, tenantMiddleware, requireTenantMatch);
 
 router.post('/', requireTPO, validate(createAnnouncementSchema), auditLog('ANNOUNCEMENT_CREATE', 'announcement'), announcementController.create);
 router.get('/', requireRole('super_admin', 'tpo', 'tpo_assistant', 'student'), announcementController.list);
+router.patch('/:id', requireTPO, announcementController.update);
 router.delete('/:id', requireTPO, announcementController.delete);
 
 export default router;
