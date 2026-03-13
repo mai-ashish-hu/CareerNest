@@ -56,6 +56,7 @@ export const api = {
         getById: (token: string, id: string) => apiFetch(`/drives/${id}`, { token }),
         create: (token: string, data: unknown) => apiFetch('/drives', { method: 'POST', body: JSON.stringify(data), token }),
         update: (token: string, id: string, data: unknown) => apiFetch(`/drives/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        delete: (token: string, id: string) => apiFetch(`/drives/${id}`, { method: 'DELETE', token }),
         getApplications: (token: string, driveId: string, params?: string) =>
             apiFetch(`/drives/${driveId}/applications${params ? `?${params}` : ''}`, { token }),
     },

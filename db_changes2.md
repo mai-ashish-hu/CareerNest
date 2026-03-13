@@ -64,3 +64,55 @@ None required. This is a code-only change with no database modifications.
 - **No data migration needed** — existing data remains fully compatible
 - **Backward compatible** — the new announcement PATCH endpoint is additive; existing create/list/delete continue to work unchanged
 - **Email job queuing is non-blocking** — failures are caught and logged, never interrupt the stage update flow
+
+---
+
+# Database Changes — Phase 3
+
+## Summary
+
+**No database schema changes are required for this implementation phase.**
+
+This phase delivers feature completions and bug fixes that operate on the existing Appwrite schema.
+
+---
+
+## What Was Fixed / Added (Without Schema Changes)
+
+### 9. College Portal Interview Room — TypeScript Error Fix
+- **Issue**: The `interview.$roomId.tsx` component in `web-college` referenced `user.$id` (Appwrite document notation) while the `SessionUser` type exposes the field as `user.id`. This caused 7 TypeScript compile errors.
+- **Fix**: Replaced all occurrences of `user.$id` with `user.id` in `apps/web-college/app/routes/interview.$roomId.tsx`.
+- **DB Impact**: None. Pure client-side type correction.
+
+### 10. Drive Delete Endpoint — Backend + Frontend
+- **Issue**: No HTTP endpoint existed to delete a drive. The edit (pencil) button in the college portal drives list was also non-functional.
+- **Fix**:
+  - Added `DriveService.delete()` method in `apps/server/src/services/drive.service.ts` — calls `databases.deleteDocument()` after verifying tenant ownership.
+  - Added `DriveController.delete()` handler in `apps/server/src/controllers/drive.controller.ts`.
+  - Registered `DELETE /:id` route in `apps/server/src/routes/drive.routes.ts` (TPO or company only, with audit log).
+  - Added `DRIVE_DELETE` to `APP_CONSTANTS.AUDIT_ACTIONS` in `apps/server/src/config/constants.ts`.
+  - Added `api.drives.delete()` helper in `packages/lib/src/api.ts`.
+  - College portal `_app.drives.tsx`: wired up the pencil button to open a pre-filled edit modal (`_action=update`), added a trash button that submits `_action=delete`, and updated the `action()` function to handle `update` and `delete` in addition to `create`.
+- **DB Impact**: Deletes the drive document from the `drives` collection. No schema changes.
+
+### 11. Student Profile View — College Portal
+- **Issue**: The Eye button in the college portal students table was a non-functional `<button>` with no navigation or modal.
+- **Fix**:
+  - Created `apps/web-college/app/routes/_app.students.$id.tsx` — a full student profile page that fetches `GET /students/:id`, attempts to load the student's directory profile, and lists their applications.
+  - Updated the Eye button in `_app.students.tsx` to be a `<RemixLink to="/students/${row.id}">` (imported `Link as RemixLink`).
+- **DB Impact**: None. Reads from existing `students`, `student_profiles`, and `applications` collections.
+
+---
+
+## Migration Steps
+
+None required. This is a code-only change with no database modifications.
+
+---
+
+## Impact on Existing Systems
+
+- **Zero breaking changes** — all changes are additive
+- **Drive deletion is permanent** — when a TPO or company deletes a drive, the document is permanently removed from Appwrite. Existing applications referencing the drive by `driveId` will remain but will no longer be able to resolve the drive details. If cascade deletion of applications is desired in future, add it to `DriveService.delete()`.
+- **Student profile page** is a new route — no existing routes are affected
+

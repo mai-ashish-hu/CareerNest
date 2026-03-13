@@ -3,7 +3,7 @@ import { Plus, Search, Users, GraduationCap, Download, Eye, Upload, UserPlus, Fi
 import { Card, Badge, Table, EmptyState, Avatar, Tabs, Button, Modal, Input } from '@careernest/ui';
 import type { MetaFunction, LoaderFunctionArgs, ActionFunctionArgs } from '@remix-run/node';
 import { json, redirect } from '@remix-run/node';
-import { useLoaderData, useFetcher } from '@remix-run/react';
+import { useLoaderData, useFetcher, Link as RemixLink } from '@remix-run/react';
 import { requireUserSession } from '~/auth.server';
 import { api } from '@careernest/lib';
 
@@ -231,9 +231,13 @@ export default function Students() {
         {
             header: '',
             accessor: (row: Student) => (
-                <button className="p-1.5 rounded-lg text-surface-400 hover:text-primary-600 hover:bg-primary-50 transition-colors" title="View Profile">
+                <RemixLink
+                    to={`/students/${row.id}`}
+                    className="p-1.5 rounded-lg text-surface-400 hover:text-primary-600 hover:bg-primary-50 transition-colors inline-flex"
+                    title="View Profile"
+                >
                     <Eye size={15} />
-                </button>
+                </RemixLink>
             ),
             className: 'w-12',
         },

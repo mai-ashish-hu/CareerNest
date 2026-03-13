@@ -90,7 +90,7 @@ export default function InterviewRoomPage() {
             const res = await api.interviewSignal.poll(token, roomId, lastSignalTime.current || undefined) as any;
             const signals = res.data?.signals || res.signals || [];
             for (const signal of signals) {
-                if (signal.senderId === user.$id) { lastSignalTime.current = signal.$createdAt; continue; }
+                if (signal.senderId === user.id) { lastSignalTime.current = signal.$createdAt; continue; }
                 lastSignalTime.current = signal.$createdAt;
                 const data = typeof signal.data === 'string' ? JSON.parse(signal.data) : signal.data;
 
@@ -101,16 +101,16 @@ export default function InterviewRoomPage() {
                     const offer = await pc.createOffer();
                     await pc.setLocalDescription(offer);
                     api.interviewSignal.send(token, roomId, { type: 'offer', targetId: signal.senderId, data: JSON.stringify(offer) }).catch(() => {});
-                } else if (signal.type === 'offer' && (!signal.targetId || signal.targetId === user.$id)) {
+                } else if (signal.type === 'offer' && (!signal.targetId || signal.targetId === user.id)) {
                     const pc = createPeerConnection(signal.senderId);
                     await pc.setRemoteDescription(new RTCSessionDescription(data));
                     const answer = await pc.createAnswer();
                     await pc.setLocalDescription(answer);
                     api.interviewSignal.send(token, roomId, { type: 'answer', targetId: signal.senderId, data: JSON.stringify(answer) }).catch(() => {});
-                } else if (signal.type === 'answer' && (!signal.targetId || signal.targetId === user.$id)) {
+                } else if (signal.type === 'answer' && (!signal.targetId || signal.targetId === user.id)) {
                     const pc = peerConnections.current.get(signal.senderId);
                     if (pc?.signalingState !== 'stable') await pc?.setRemoteDescription(new RTCSessionDescription(data));
-                } else if (signal.type === 'candidate' && (!signal.targetId || signal.targetId === user.$id)) {
+                } else if (signal.type === 'candidate' && (!signal.targetId || signal.targetId === user.id)) {
                     const pc = peerConnections.current.get(signal.senderId);
                     if (pc?.remoteDescription) await pc.addIceCandidate(new RTCIceCandidate(data));
                 } else if (signal.type === 'chat') {
@@ -123,7 +123,7 @@ export default function InterviewRoomPage() {
                 }
             }
         } catch { /* ignore */ }
-    }, [token, roomId, user.$id, createPeerConnection, showChat]);
+    }, [token, roomId, user.id, createPeerConnection, showChat]);
 
     useEffect(() => {
         const init = async () => {
@@ -141,13 +141,13 @@ export default function InterviewRoomPage() {
                     setConnectionStatus('connected');
                 } catch { /* ignore */ }
             }
-            api.interviewSignal.send(token, roomId, { type: 'join', data: JSON.stringify({ userId: user.$id, name: user.name }) }).catch(() => {});
+            api.interviewSignal.send(token, roomId, { type: 'join', data: JSON.stringify({ userId: user.id, name: user.name }) }).catch(() => {});
             pollRef.current = setInterval(processSignals, SIGNAL_POLL_INTERVAL);
         };
         init();
         return () => {
             if (pollRef.current) clearInterval(pollRef.current);
-            api.interviewSignal.send(token, roomId, { type: 'leave', data: JSON.stringify({ userId: user.$id }) }).catch(() => {});
+            api.interviewSignal.send(token, roomId, { type: 'leave', data: JSON.stringify({ userId: user.id }) }).catch(() => {});
             localStreamRef.current?.getTracks().forEach(t => t.stop());
             screenStream.current?.getTracks().forEach(t => t.stop());
             peerConnections.current.forEach(pc => pc.close());

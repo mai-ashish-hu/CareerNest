@@ -76,6 +76,20 @@ export class DriveController {
         }
     }
 
+    async delete(req: Request, res: Response, next: NextFunction) {
+        try {
+            const companyId = req.user?.role === 'company' ? req.user.companyId : undefined;
+            if (req.user?.role === 'company' && !companyId) {
+                throw new ForbiddenError('Company profile not found');
+            }
+
+            await driveService.delete(req.params.id, req.tenantId!, companyId);
+            sendSuccess(res, { message: 'Drive deleted successfully' });
+        } catch (error) {
+            next(error);
+        }
+    }
+
     /**
      * GET /drives/:id/applications
      * Returns all applications for a drive, enriched with student details.

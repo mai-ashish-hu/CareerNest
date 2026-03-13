@@ -18,5 +18,6 @@ router.get('/:id', requireAuthenticated, driveController.getById);
 // Get all applications for a drive with enriched student details (for selection management)
 router.get('/:id/applications', requireTPOOrAssistant, driveController.getApplications);
 router.patch('/:id', requireTPOOrCompany, validate(updateDriveSchema), auditLog('DRIVE_UPDATE', 'drive'), driveController.update);
+router.delete('/:id', requireTPOOrCompany, auditLog('DRIVE_DELETE', 'drive'), driveController.delete);
 
 export default router;

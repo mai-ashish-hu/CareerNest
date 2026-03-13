@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, Briefcase, Calendar, IndianRupee, MapPin, Eye, Pencil, Building2, UserCheck, GraduationCap, ExternalLink, Link } from 'lucide-react';
+import { Plus, Search, Briefcase, Calendar, IndianRupee, MapPin, Eye, Pencil, Trash2, Building2, UserCheck, GraduationCap, ExternalLink, Link } from 'lucide-react';
 import { Button, Card, Badge, Modal, Input, Textarea, EmptyState, Avatar } from '@careernest/ui';
 import type { MetaFunction, LoaderFunctionArgs, ActionFunctionArgs } from '@remix-run/node';
 import { json, redirect } from '@remix-run/node';
@@ -83,6 +83,19 @@ export async function action({ request }: ActionFunctionArgs) {
     if ((user.role !== 'tpo' && user.role !== 'tpo_assistant') || !user.tenantId) return json({ error: 'Unauthorized' }, { status: 403 });
 
     const form = await request.formData();
+    const intent = form.get('_action') as string;
+
+    if (intent === 'delete') {
+        const driveId = form.get('driveId') as string;
+        if (!driveId) return json({ error: 'Drive ID required' }, { status: 400 });
+        try {
+            await api.drives.delete(token, driveId);
+            return json({ success: true, deleted: driveId });
+        } catch (err: any) {
+            return json({ error: err?.message || 'Failed to delete drive' }, { status: 500 });
+        }
+    }
+
     const payload = {
         companies: form.get('companies') as string,
         title: form.get('title') as string,
@@ -101,6 +114,18 @@ export async function action({ request }: ActionFunctionArgs) {
         Backlogs: Number(form.get('Backlogs')),
         description: form.get('description') as string,
     };
+
+    if (intent === 'update') {
+        const driveId = form.get('driveId') as string;
+        if (!driveId) return json({ error: 'Drive ID required' }, { status: 400 });
+        try {
+            const { companies: _c, ...updatePayload } = payload;
+            await api.drives.update(token, driveId, updatePayload);
+            return json({ success: true });
+        } catch (err: any) {
+            return json({ error: err?.message || 'Failed to update drive' }, { status: 500 });
+        }
+    }
 
     try {
         await api.drives.create(token, payload);
@@ -128,12 +153,17 @@ function formatJobType(type: string): string {
 
 export default function Drives() {
     const { drives, companies } = useLoaderData<typeof loader>() as { drives: Drive[]; companies: any[] };
-    const fetcher = useFetcher<{ success?: boolean; error?: string }>();
+    const fetcher = useFetcher<{ success?: boolean; error?: string; deleted?: string }>();
+    const deleteFetcher = useFetcher<{ success?: boolean; error?: string }>();
     const [showModal, setShowModal] = useState(false);
+    const [editDrive, setEditDrive] = useState<Drive | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
-        if (fetcher.data?.success) setShowModal(false);
+        if (fetcher.data?.success) {
+            setShowModal(false);
+            setEditDrive(null);
+        }
     }, [fetcher.data]);
 
     const filtered = drives.filter((d) => {
@@ -263,8 +293,26 @@ export default function Drives() {
                                     >
                                         <Eye size={15} />
                                     </RemixLink>
-                                    <button className="p-1.5 rounded-lg text-surface-400 hover:text-primary-600 hover:bg-primary-50 transition-colors" title="Edit">
+                                    <button
+                                        className="p-1.5 rounded-lg text-surface-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
+                                        title="Edit"
+                                        onClick={() => { setEditDrive(drive); setShowModal(true); }}
+                                    >
                                         <Pencil size={15} />
+                                    </button>
+                                    <button
+                                        className="p-1.5 rounded-lg text-surface-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                                        title="Delete"
+                                        onClick={() => {
+                                            if (confirm(`Delete drive "${drive.title}"? This cannot be undone.`)) {
+                                                deleteFetcher.submit(
+                                                    { _action: 'delete', driveId: drive.id },
+                                                    { method: 'post' }
+                                                );
+                                            }
+                                        }}
+                                    >
+                                        <Trash2 size={15} />
                                     </button>
                                 </div>
                             </div>
@@ -282,13 +330,16 @@ export default function Drives() {
                 </Card>
             )}
 
-            {/* Create Drive Modal */}
-            <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Create New Drive" size="lg">
+            {/* Create / Edit Drive Modal */}
+            <Modal isOpen={showModal} onClose={() => { setShowModal(false); setEditDrive(null); }} title={editDrive ? 'Edit Drive' : 'Create New Drive'} size="lg">
                 <fetcher.Form method="post" className="space-y-5 max-h-[75vh] overflow-y-auto pr-1">
+                    <input type="hidden" name="_action" value={editDrive ? 'update' : 'create'} />
+                    {editDrive && <input type="hidden" name="driveId" value={editDrive.id} />}
                     {/* Section 1: Company & Role */}
                     <div>
                         <h4 className="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-3">Company & Role</h4>
                         <div className="grid grid-cols-2 gap-4">
+                            {!editDrive && (
                             <div className="col-span-2">
                                 <label className="form-label">Company</label>
                                 <select name="companies" className="form-input" required>
@@ -298,10 +349,11 @@ export default function Drives() {
                                     ))}
                                 </select>
                             </div>
-                            <Input name="title" label="Job Role / Title" placeholder="e.g., SDE-1, Data Analyst" required />
+                            )}
+                            <Input key={`title-${editDrive?.id}`} name="title" label="Job Role / Title" placeholder="e.g., SDE-1, Data Analyst" defaultValue={editDrive?.title} required />
                             <div>
                                 <label className="form-label">Job Level</label>
-                                <select name="jobLevel" className="form-input" required>
+                                <select name="jobLevel" className="form-input" defaultValue={editDrive?.jobLevel || ''} required>
                                     <option value="">Select level</option>
                                     <option value="internship">Internship</option>
                                     <option value="entry">Entry Level</option>
@@ -312,7 +364,7 @@ export default function Drives() {
                             </div>
                             <div>
                                 <label className="form-label">Job Type</label>
-                                <select name="jobType" className="form-input" required>
+                                <select name="jobType" className="form-input" defaultValue={editDrive?.jobType || ''} required>
                                     <option value="">Select type</option>
                                     <option value="full-time">Full Time</option>
                                     <option value="part-time">Part Time</option>
@@ -323,7 +375,7 @@ export default function Drives() {
                             </div>
                             <div>
                                 <label className="form-label">Experience Required</label>
-                                <select name="experience" className="form-input" required>
+                                <select name="experience" className="form-input" defaultValue={editDrive?.experience || 'fresher'} required>
                                     <option value="fresher">Fresher (0 years)</option>
                                     <option value="0-1">0 – 1 year</option>
                                     <option value="1-2">1 – 2 years</option>
@@ -339,17 +391,17 @@ export default function Drives() {
                     <div className="border-t border-surface-100 pt-4">
                         <h4 className="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-3">Compensation & Details</h4>
                         <div className="grid grid-cols-2 gap-4">
-                            <Input name="salary" label="CTC / Salary" placeholder="e.g., 600000" type="number" icon={<IndianRupee size={16} />} required />
+                            <Input key={`salary-${editDrive?.id}`} name="salary" label="CTC / Salary" placeholder="e.g., 600000" type="number" icon={<IndianRupee size={16} />} defaultValue={editDrive?.salary?.toString()} required />
                             <div>
                                 <label className="form-label">Salary Period</label>
-                                <select name="ctcPeriod" className="form-input" required>
+                                <select name="ctcPeriod" className="form-input" defaultValue={editDrive?.ctcPeriod || 'annual'} required>
                                     <option value="annual">Per Annum (Yearly)</option>
                                     <option value="monthly">Per Month</option>
                                 </select>
                             </div>
-                            <Input name="location" label="Location" placeholder="e.g., Bengaluru, Remote" icon={<MapPin size={16} />} required />
-                            <Input name="vacancies" label="No. of Vacancies" placeholder="e.g., 10" type="number" min="1" icon={<UserCheck size={16} />} required />
-                            <Input name="deadline" label="Application Deadline" type="date" icon={<Calendar size={16} />} required />
+                            <Input key={`location-${editDrive?.id}`} name="location" label="Location" placeholder="e.g., Bengaluru, Remote" icon={<MapPin size={16} />} defaultValue={editDrive?.location} required />
+                            <Input key={`vacancies-${editDrive?.id}`} name="vacancies" label="No. of Vacancies" placeholder="e.g., 10" type="number" min="1" icon={<UserCheck size={16} />} defaultValue={editDrive?.vacancies?.toString()} required />
+                            <Input key={`deadline-${editDrive?.id}`} name="deadline" label="Application Deadline" type="date" icon={<Calendar size={16} />} defaultValue={editDrive?.deadline ? editDrive.deadline.substring(0, 10) : undefined} required />
                         </div>
                     </div>
 
@@ -357,12 +409,12 @@ export default function Drives() {
                     <div className="border-t border-surface-100 pt-4">
                         <h4 className="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-3">Eligibility Criteria</h4>
                         <div className="grid grid-cols-2 gap-4">
-                            <Input name="CGPA" label="Minimum CGPA" placeholder="e.g., 7.0" type="number" step="0.1" required />
-                            <Input name="Backlogs" label="Maximum Backlogs" placeholder="e.g., 0" type="number" required />
+                            <Input key={`cgpa-${editDrive?.id}`} name="CGPA" label="Minimum CGPA" placeholder="e.g., 7.0" type="number" step="0.1" defaultValue={editDrive?.CGPA?.toString()} required />
+                            <Input key={`backlogs-${editDrive?.id}`} name="Backlogs" label="Maximum Backlogs" placeholder="e.g., 0" type="number" defaultValue={editDrive?.Backlogs?.toString()} required />
                         </div>
                         <div className="mt-3">
                             <label className="form-label">Studying Year</label>
-                            <select name="studyingYear" className="form-input" required>
+                            <select name="studyingYear" className="form-input" defaultValue={editDrive?.studyingYear || ''} required>
                                 <option value="">Select year</option>
                                 <option value="1st">1st Year</option>
                                 <option value="2nd">2nd Year</option>
@@ -377,7 +429,8 @@ export default function Drives() {
                             <div className="flex flex-wrap gap-2 mt-1">
                                 {['CSE', 'IT', 'ECE', 'EE', 'ME', 'CE', 'Civil', 'BBA', 'MBA', 'MCA'].map((dept) => (
                                     <label key={dept} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-surface-200 hover:bg-surface-50 cursor-pointer text-sm transition-colors">
-                                        <input type="checkbox" name="department" value={dept} className="rounded border-surface-300 text-primary-600 focus:ring-primary-500" />
+                                        <input type="checkbox" name="department" value={dept} className="rounded border-surface-300 text-primary-600 focus:ring-primary-500"
+                                            defaultChecked={editDrive?.department?.includes(dept)} />
                                         {dept}
                                     </label>
                                 ))}
@@ -387,9 +440,9 @@ export default function Drives() {
 
                     {/* Section 4: Description & Link */}
                     <div className="border-t border-surface-100 pt-4">
-                        <Textarea name="description" label="Job Description" placeholder="Brief description of the role, responsibilities, perks, work culture..." rows={3} required />
+                        <Textarea key={`desc-${editDrive?.id}`} name="description" label="Job Description" placeholder="Brief description of the role, responsibilities, perks, work culture..." rows={3} defaultValue={editDrive?.description} required />
                         <div className="mt-3">
-                            <Input name="externalLink" label="External Application Link" placeholder="https://careers.company.com/apply" type="url" icon={<Link size={16} />} />
+                            <Input key={`extlink-${editDrive?.id}`} name="externalLink" label="External Application Link" placeholder="https://careers.company.com/apply" type="url" icon={<Link size={16} />} defaultValue={editDrive?.externalLink} />
                         </div>
                     </div>
 
@@ -398,9 +451,9 @@ export default function Drives() {
                     )}
 
                     <div className="flex justify-end gap-3 pt-4 border-t border-surface-100">
-                        <Button variant="ghost" type="button" onClick={() => setShowModal(false)}>Cancel</Button>
+                        <Button variant="ghost" type="button" onClick={() => { setShowModal(false); setEditDrive(null); }}>Cancel</Button>
                         <Button type="submit" disabled={fetcher.state !== 'idle'}>
-                            {fetcher.state !== 'idle' ? 'Creating…' : 'Create Drive'}
+                            {fetcher.state !== 'idle' ? (editDrive ? 'Saving…' : 'Creating…') : (editDrive ? 'Save Changes' : 'Create Drive')}
                         </Button>
                     </div>
                 </fetcher.Form>
