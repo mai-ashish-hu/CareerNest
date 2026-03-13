@@ -13,6 +13,20 @@ async function safeCount(db: string, collection: string, queries: string[] = [Qu
     }
 }
 
+async function mapInBatches<T, R>(
+    items: T[],
+    batchSize: number,
+    mapper: (item: T) => Promise<R>
+): Promise<R[]> {
+    const results: R[] = [];
+    for (let index = 0; index < items.length; index += batchSize) {
+        const batch = items.slice(index, index + batchSize);
+        const batchResults = await Promise.all(batch.map(mapper));
+        results.push(...batchResults);
+    }
+    return results;
+}
+
 export class AdminService {
     private readonly db = env.APPWRITE_DATABASE_ID;
 
@@ -195,8 +209,7 @@ export class AdminService {
                 Query.orderDesc('$createdAt'),
             ]);
 
-            const stats = await Promise.all(
-                tenants.documents.map(async (tenant) => {
+            const stats = await mapInBatches(tenants.documents, 10, async (tenant) => {
                     const [totalStudents, totalCompanies, totalDrives, totalPlacements] =
                         await Promise.all([
                             safeCount(this.db, env.COLLECTION_STUDENTS, [
@@ -222,8 +235,7 @@ export class AdminService {
                         totalDrives,
                         totalPlacements,
                     };
-                })
-            );
+                });
 
             return stats;
         } catch {

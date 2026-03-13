@@ -113,6 +113,7 @@ export class StudentProfileService {
     private readonly profilePhotoBucketId = env.APPWRITE_BUCKET_PROFILE_PHOTOS;
     private readonly certificateBucketId = env.APPWRITE_BUCKET_CERTIFICATES;
     private readonly appwriteAssetEndpoint = trimTrailingSlash(env.APPWRITE_PUBLIC_ENDPOINT);
+    private readonly referenceLabelCache = new Map<string, { id?: string; label: string }>();
 
     // Appwrite "view" endpoint returns the original file and does not
     // require additional query parameters (width/height) that preview needs.
@@ -177,6 +178,10 @@ export class StudentProfileService {
         );
     }
 
+    private getReferenceCacheKey(collectionId: string, refId: string): string {
+        return `${collectionId}:${refId}`;
+    }
+
     private async safeList(
         collectionId: string,
         queries: string[]
@@ -225,19 +230,31 @@ export class StudentProfileService {
             const label = labelKeys
                 .map((key) => doc[key])
                 .find((value) => typeof value === 'string' && value.trim().length > 0);
-            return {
+            const resolved = {
                 id: typeof doc.$id === 'string' ? doc.$id : undefined,
                 label: typeof label === 'string' ? label : '',
             };
+            if (resolved.id && resolved.label) {
+                this.referenceLabelCache.set(this.getReferenceCacheKey(collectionId, resolved.id), resolved);
+            }
+            return resolved;
         }
 
         if (typeof ref === 'string') {
+            const cacheKey = this.getReferenceCacheKey(collectionId, ref);
+            const cached = this.referenceLabelCache.get(cacheKey);
+            if (cached) {
+                return cached;
+            }
+
             try {
                 const doc = await databases.getDocument(this.databaseId, collectionId, ref);
                 const label = labelKeys
                     .map((key) => (doc as Record<string, unknown>)[key])
                     .find((value) => typeof value === 'string' && value.trim().length > 0);
-                return { id: ref, label: typeof label === 'string' ? label : ref };
+                const resolved = { id: ref, label: typeof label === 'string' ? label : ref };
+                this.referenceLabelCache.set(cacheKey, resolved);
+                return resolved;
             } catch {
                 return { id: ref, label: ref };
             }

@@ -4,26 +4,79 @@ import { Query } from 'node-appwrite';
 import { PlacementAnalytics } from '@careernest/shared';
 import { companyService } from './company.service';
 
+const MAX_ANALYTICS_ROWS = 5000;
+const PAGE_SIZE = 500;
+
+async function mapInBatches<T, R>(
+    items: T[],
+    batchSize: number,
+    mapper: (item: T) => Promise<R>
+): Promise<R[]> {
+    const results: R[] = [];
+    for (let index = 0; index < items.length; index += batchSize) {
+        const batch = items.slice(index, index + batchSize);
+        const batchResults = await Promise.all(batch.map(mapper));
+        results.push(...batchResults);
+    }
+    return results;
+}
+
 export class AnalyticsService {
     private readonly databaseId = env.APPWRITE_DATABASE_ID;
 
-    async getPlacementAnalytics(tenantId: string): Promise<PlacementAnalytics> {
-        // Get all students for this tenant
-        const allStudents = await databases.listDocuments(
-            this.databaseId,
-            env.COLLECTION_STUDENTS,
-            [Query.equal('tenantId', tenantId), Query.limit(5000)]
-        );
+    private async listStudentsByTenant(tenantId: string): Promise<Array<Record<string, any>>> {
+        const students: Array<Record<string, any>> = [];
+        let offset = 0;
+        let total = Number.POSITIVE_INFINITY;
 
-        const totalStudents = allStudents.total;
-        const placedStudents = allStudents.documents.filter((s) => s.isPlaced === true).length;
+        while (offset < total && students.length < MAX_ANALYTICS_ROWS) {
+            const page = await databases.listDocuments(
+                this.databaseId,
+                env.COLLECTION_STUDENTS,
+                [
+                    Query.equal('tenantId', tenantId),
+                    Query.limit(PAGE_SIZE),
+                    Query.offset(offset),
+                ]
+            );
+
+            students.push(...(page.documents as Array<Record<string, any>>));
+            total = page.total;
+
+            if (page.documents.length === 0) {
+                break;
+            }
+
+            offset += page.documents.length;
+        }
+
+        return students;
+    }
+
+    private extractCompanyIdFromDrive(drive: Record<string, any>): string {
+        const companyRef = drive.companies;
+        if (!companyRef) return '';
+        if (Array.isArray(companyRef)) {
+            const first = companyRef[0];
+            if (!first) return '';
+            return typeof first === 'string' ? first : String(first.$id || '');
+        }
+        return typeof companyRef === 'string' ? companyRef : String(companyRef.$id || '');
+    }
+
+    async getPlacementAnalytics(tenantId: string): Promise<PlacementAnalytics> {
+        // Process students in pages to avoid one large read while preserving analytics behavior.
+        const studentDocs = await this.listStudentsByTenant(tenantId);
+
+        const totalStudents = studentDocs.length;
+        const placedStudents = studentDocs.filter((s) => s.isPlaced === true).length;
         const placementPercentage = totalStudents > 0
             ? Math.round((placedStudents / totalStudents) * 1000) / 10
             : 0;
 
         // Department-wise stats
         const deptMap = new Map<string, { total: number; placed: number }>();
-        for (const student of allStudents.documents) {
+        for (const student of studentDocs) {
             const deptField = (student as any).departements || (student as any).departments || student.department;
             const dept = typeof deptField === 'object' && deptField !== null
                 ? (deptField.departmentName || deptField.$id || '')
@@ -48,6 +101,9 @@ export class AnalyticsService {
         // Fetch tenant's company IDs first, then filter drives by those companies.
         const companiesResult = await companyService.list(tenantId, 1, 500);
         const tenantCompanyIds = new Set(companiesResult.companies.map((c: any) => c.$id as string));
+        const companyNameById = new Map<string, string>(
+            companiesResult.companies.map((company: any) => [String(company.$id), String(company.name || 'Unknown')])
+        );
 
         const allDrives = await databases.listDocuments(
             this.databaseId,
@@ -57,16 +113,11 @@ export class AnalyticsService {
 
         // Keep only drives whose linked company belongs to this tenant
         const drives = allDrives.documents.filter((doc: any) => {
-            const companyRef = doc.companies;
-            if (!companyRef) return false;
-            if (Array.isArray(companyRef)) {
-                return companyRef.some((c: any) => tenantCompanyIds.has(c.$id || c));
-            }
-            return tenantCompanyIds.has(companyRef.$id || companyRef);
+            const companyId = this.extractCompanyIdFromDrive(doc as Record<string, any>);
+            return companyId ? tenantCompanyIds.has(companyId) : false;
         });
 
-        const driveConversion = [];
-        for (const drive of drives) {
+        const driveConversion = await mapInBatches(drives, 20, async (drive: any) => {
             const applications = await databases.listDocuments(
                 this.databaseId,
                 env.COLLECTION_APPLICATIONS,
@@ -80,33 +131,17 @@ export class AnalyticsService {
             const applied = applications.total;
             const selected = applications.documents.filter((a) => a.stage === 'selected').length;
 
-            // Get company name — extract from 'companies' relationship field
-            let companyName = 'Unknown';
-            try {
-                const companyRef = (drive as any).companies;
-                const companyId = Array.isArray(companyRef)
-                    ? (companyRef[0]?.$id || companyRef[0])
-                    : (companyRef?.$id || companyRef);
-                if (companyId && typeof companyId === 'string') {
-                    const company = await databases.getDocument(
-                        this.databaseId,
-                        env.COLLECTION_COMPANIES,
-                        companyId
-                    );
-                    companyName = company.name as string;
-                }
-            } catch {
-                // ignore — company might be deleted or relationship not expanded
-            }
+            const companyId = this.extractCompanyIdFromDrive(drive as Record<string, any>);
+            const companyName = companyNameById.get(companyId) || 'Unknown';
 
-            driveConversion.push({
+            return {
                 driveId: drive.$id,
                 company: companyName,
                 applied,
                 selected,
                 rate: applied > 0 ? Math.round((selected / applied) * 10000) / 100 : 0,
-            });
-        }
+            };
+        });
 
         return {
             placementPercentage,
