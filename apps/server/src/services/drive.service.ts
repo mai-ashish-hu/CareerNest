@@ -12,6 +12,24 @@ import { companyService } from './company.service';
 const companyIdsCache = new Map<string, { ids: Set<string>; expiresAt: number }>();
 const COMPANY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+function extractLinkedCompanyId(companyRef: unknown): string | null {
+    if (!companyRef) return null;
+    if (Array.isArray(companyRef)) {
+        const first = companyRef[0];
+        if (!first) return null;
+        if (typeof first === 'string') return first;
+        if (typeof first === 'object' && first !== null && '$id' in first) {
+            return String(first.$id);
+        }
+        return null;
+    }
+    if (typeof companyRef === 'string') return companyRef;
+    if (typeof companyRef === 'object' && companyRef !== null && '$id' in companyRef) {
+        return String(companyRef.$id);
+    }
+    return null;
+}
+
 async function getTenantCompanyIds(tenantId: string): Promise<Set<string>> {
     const cached = companyIdsCache.get(tenantId);
     if (cached && Date.now() < cached.expiresAt) return cached.ids;
@@ -26,15 +44,16 @@ export class DriveService {
     private readonly databaseId = env.APPWRITE_DATABASE_ID;
     private readonly collectionId = env.COLLECTION_DRIVES;
 
-    async create(_tenantId: string, data: CreateDriveInput) {
+    async create(tenantId: string, data: CreateDriveInput) {
+        await companyService.getById(data.companies, tenantId);
+
         const drive = await databases.createDocument(
             this.databaseId,
             this.collectionId,
             ID.unique(),
             {
-                companies: [data.companies],
+                companies: data.companies,
                 title: data.title,
-                status: data.status ?? 'active',
                 jobLevel: data.jobLevel,
                 jobType: data.jobType,
                 experience: data.experience,
@@ -55,23 +74,22 @@ export class DriveService {
         return drive;
     }
 
-    async getById(driveId: string, tenantId?: string) {
+    async getById(driveId: string, tenantId?: string | null, companyId?: string | null) {
         try {
             const drive = await databases.getDocument(this.databaseId, this.collectionId, driveId);
+            const linkedCompanyId = extractLinkedCompanyId((drive as any).companies);
 
             // If tenantId supplied, verify the linked company belongs to that tenant
-            if (tenantId) {
-                const companyRef = (drive as any).companies;
-                const companyId = Array.isArray(companyRef)
-                    ? (companyRef[0]?.$id || companyRef[0])
-                    : (companyRef?.$id || companyRef);
-                if (companyId) {
-                    try {
-                        await companyService.getById(companyId, tenantId);
-                    } catch {
-                        throw new NotFoundError('Drive');
-                    }
+            if (tenantId && linkedCompanyId) {
+                try {
+                    await companyService.getById(linkedCompanyId, tenantId);
+                } catch {
+                    throw new NotFoundError('Drive');
                 }
+            }
+
+            if (companyId && linkedCompanyId !== companyId) {
+                throw new NotFoundError('Drive');
             }
 
             return drive;
@@ -83,6 +101,10 @@ export class DriveService {
     async list(tenantId: string, page: number, limit: number, filters: { companyId?: string } = {}) {
         // Get tenant's company IDs (cached)
         const tenantCompanyIds = await getTenantCompanyIds(tenantId);
+
+        if (filters.companyId && !tenantCompanyIds.has(filters.companyId)) {
+            return { drives: [], total: 0 };
+        }
 
         // Fetch drives
         const result = await databases.listDocuments(this.databaseId, this.collectionId, [
@@ -121,12 +143,11 @@ export class DriveService {
         return this.list(tenantId, page, limit, { companyId });
     }
 
-    async update(driveId: string, tenantId: string, data: UpdateDriveInput) {
-        await this.getById(driveId, tenantId);
+    async update(driveId: string, tenantId: string, data: UpdateDriveInput, companyId?: string | null) {
+        await this.getById(driveId, tenantId, companyId);
 
         const updateData: Record<string, unknown> = {};
         if (data.title !== undefined) updateData.title = data.title;
-        if (data.status !== undefined) updateData.status = data.status;
         if (data.jobLevel !== undefined) updateData.jobLevel = data.jobLevel;
         if (data.jobType !== undefined) updateData.jobType = data.jobType;
         if (data.experience !== undefined) updateData.experience = data.experience;

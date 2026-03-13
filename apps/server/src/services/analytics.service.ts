@@ -24,7 +24,10 @@ export class AnalyticsService {
         // Department-wise stats
         const deptMap = new Map<string, { total: number; placed: number }>();
         for (const student of allStudents.documents) {
-            const dept = student.department as string;
+            const deptField = (student as any).departements || (student as any).departments || student.department;
+            const dept = typeof deptField === 'object' && deptField !== null
+                ? (deptField.departmentName || deptField.$id || '')
+                : String(deptField || '');
             if (!deptMap.has(dept)) {
                 deptMap.set(dept, { total: 0, placed: 0 });
             }

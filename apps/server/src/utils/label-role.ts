@@ -7,6 +7,7 @@ import { Role } from '@careernest/shared';
  * The first matching label (by priority) wins:
  *   "SuperAdmin"   → super_admin
  *   "TPO"          → tpo
+ *   "deptHead"     → tpo_assistant
  *   "TPOAssistant" → tpo_assistant
  *   "Student"      → student
  *   "Company"      → company
@@ -14,6 +15,7 @@ import { Role } from '@careernest/shared';
 const LABEL_TO_ROLE: Record<string, Role> = {
     SuperAdmin: 'super_admin',
     TPO: 'tpo',
+    deptHead: 'tpo_assistant',
     TPOAssistant: 'tpo_assistant',
     Student: 'student',
     Company: 'company',
@@ -23,6 +25,7 @@ const LABEL_TO_ROLE: Record<string, Role> = {
 const LABEL_PRIORITY: string[] = [
     'SuperAdmin',
     'TPO',
+    'deptHead',
     'TPOAssistant',
     'Student',
     'Company',

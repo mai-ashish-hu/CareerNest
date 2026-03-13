@@ -7,7 +7,7 @@ export class ScoringService {
      * Check if a student is eligible for a drive based on eligibility rules.
      */
     checkEligibility(
-        student: { CGPA: number; backlogs: number; department: string },
+        student: { CGPA: number; backlogs: number; department: string | { $id?: string; departmentName?: string } },
         driveRules: { minCGPA: number; maxBacklogs: number; departments: string[] }
     ): EligibilityCheckResult {
         const failedDetails: { rule: string; required: unknown; actual: unknown }[] = [];
@@ -28,11 +28,14 @@ export class ScoringService {
             });
         }
 
-        if (!driveRules.departments.includes(student.department)) {
+        const studentDept = typeof student.department === 'object' && student.department !== null
+            ? (student.department.$id || student.department.departmentName || '')
+            : String(student.department || '');
+        if (!driveRules.departments.includes(studentDept)) {
             failedDetails.push({
                 rule: 'departments',
                 required: driveRules.departments,
-                actual: student.department,
+                actual: studentDept,
             });
         }
 

@@ -9,6 +9,13 @@ const tenantAdminSchema = z.object({
 
 export const createTenantSchema = z.object({
     collegeId: z.string().min(2, 'College ID must be at least 2 characters').max(50),
+    tag: z
+        .string()
+        .trim()
+        .min(2, 'Tag must be at least 2 characters')
+        .max(30, 'Tag must be at most 30 characters')
+        .regex(/^[a-z0-9_-]+$/i, 'Tag can only contain letters, numbers, hyphens and underscores')
+        .transform((value) => value.toLowerCase()),
     collegeName: z.string().min(2, 'College name must be at least 2 characters').max(100),
     address: z.string().min(1, 'Address is required').max(300),
     city: z.string().min(1, 'City is required').max(100),
@@ -31,6 +38,42 @@ export const updateTenantSchema = z.object({
     email: z.string().email().optional().or(z.literal('')),
     website: z.string().url().optional().or(z.literal('')),
     establishedYear: z.number().int().min(1800).max(new Date().getFullYear()).optional(),
+});
+
+export const createDepartmentSchema = z.object({
+    departmentName: z.string().trim().min(2, 'Department name must be at least 2 characters').max(100),
+    departmentHeadName: z.string().trim().min(2, 'Department head name must be at least 2 characters').max(100).optional(),
+    departmentHeadEmail: z.string().trim().email('Invalid department head email').optional(),
+    departmentHeadPassword: z.string().min(8, 'Department head password must be at least 8 characters').max(100).optional(),
+}).superRefine((data, ctx) => {
+    const hasName = Boolean(data.departmentHeadName && data.departmentHeadName.trim().length > 0);
+    const hasEmail = Boolean(data.departmentHeadEmail && data.departmentHeadEmail.trim().length > 0);
+    const hasPassword = Boolean(data.departmentHeadPassword && data.departmentHeadPassword.trim().length > 0);
+
+    const providedCount = [hasName, hasEmail, hasPassword].filter(Boolean).length;
+    if (providedCount > 0 && providedCount < 3) {
+        if (!hasName) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['departmentHeadName'],
+                message: 'Department head name is required',
+            });
+        }
+        if (!hasEmail) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['departmentHeadEmail'],
+                message: 'Department head email is required',
+            });
+        }
+        if (!hasPassword) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['departmentHeadPassword'],
+                message: 'Department head password is required',
+            });
+        }
+    }
 });
 
 export type CreateTenantSchemaInput = z.infer<typeof createTenantSchema>;

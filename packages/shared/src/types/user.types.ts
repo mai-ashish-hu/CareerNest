@@ -22,24 +22,25 @@ export interface CreateUserInput {
 }
 
 export interface Student {
-    $id: string;
-    userid: string;          // Appwrite auth user ID
+    $id: string;                     // custom ID = student PRN / registration number
+    password?: string;               // stored as plaintext in Appwrite DB
     name: string;
     email: string;
-    department: string;
+    department: string | { $id: string; departmentName?: string; [key: string]: unknown }; // relationship (many-to-one)
     enrollmentYear: number;
     phoneNumber: number;
     address: string;
-    colleges: string;        // relationship – college (tenant) doc ID
+    colleges: string | { $id: string; name?: string; [key: string]: unknown }; // relationship (many-to-one)
     $createdAt: string;
     $updatedAt: string;
 }
 
 export interface CreateStudentInput {
+    studentId: string;               // used as $id (document ID)
+    password: string;                // stored as plaintext in Appwrite DB
     name: string;
     email: string;
-    password: string;
-    department: string;
+    department: string;              // department document ID
     enrollmentYear: number;
     phoneNumber: number;
     address: string;

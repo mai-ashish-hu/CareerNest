@@ -26,13 +26,16 @@ services:
   web-admin:
     build:
       context: .
-      dockerfile: apps/web-admin/Dockerfile
+      dockerfile: apps/web/Dockerfile
+    image: careernest-web:latest
     container_name: careernest-admin
     ports:
       - "3001:3000"
     environment:
       - NODE_ENV=production
       - API_URL=http://server:4000
+    working_dir: /app/apps/web-admin
+    command: ["npx", "remix-serve", "build/server/index.js"]
     depends_on:
       server:
         condition: service_healthy
@@ -42,15 +45,15 @@ services:
 
   # ─── College / TPO Portal ───
   web-college:
-    build:
-      context: .
-      dockerfile: apps/web-college/Dockerfile
+    image: careernest-web:latest
     container_name: careernest-college
     ports:
       - "3002:3000"
     environment:
       - NODE_ENV=production
       - API_URL=http://server:4000
+    working_dir: /app/apps/web-college
+    command: ["npx", "remix-serve", "build/server/index.js"]
     depends_on:
       server:
         condition: service_healthy
@@ -60,15 +63,15 @@ services:
 
   # ─── Student Portal ───
   web-student:
-    build:
-      context: .
-      dockerfile: apps/web-student/Dockerfile
+    image: careernest-web:latest
     container_name: careernest-student
     ports:
       - "3003:3000"
     environment:
       - NODE_ENV=production
       - API_URL=http://server:4000
+    working_dir: /app/apps/web-student
+    command: ["npx", "remix-serve", "build/server/index.js"]
     depends_on:
       server:
         condition: service_healthy
@@ -78,15 +81,15 @@ services:
 
   # ─── Company Portal ───
   web-company:
-    build:
-      context: .
-      dockerfile: apps/web-company/Dockerfile
+    image: careernest-web:latest
     container_name: careernest-company
     ports:
       - "3004:3000"
     environment:
       - NODE_ENV=production
       - API_URL=http://server:4000
+    working_dir: /app/apps/web-company
+    command: ["npx", "remix-serve", "build/server/index.js"]
     depends_on:
       server:
         condition: service_healthy

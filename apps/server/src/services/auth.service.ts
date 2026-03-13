@@ -4,12 +4,194 @@ import { env } from '../config/env';
 import jwt from 'jsonwebtoken';
 import { AuthenticationError, ForbiddenError } from '../utils/errors';
 import { mapLabelsToRole } from '../utils/label-role';
+import type { Role } from '@careernest/shared';
 
 export class AuthService {
+    private signToken(payload: { userId: string; email: string; name: string; role: Role; tenantId: string | null; companyId?: string | null }) {
+        return jwt.sign(payload, env.JWT_SECRET, { expiresIn: '24h' });
+    }
+
+    private extractTagFromDefaultPassword(password: string): string | null {
+        const normalized = password.trim().toLowerCase();
+        if (!normalized.endsWith('@123')) return null;
+        const tag = normalized.slice(0, -4).trim();
+        return tag || null;
+    }
+
+    private async normalizeTenantId(tenantId: string | null): Promise<string | null> {
+        if (!tenantId) return null;
+        const trimmed = tenantId.trim();
+        if (!trimmed) return null;
+
+        try {
+            const tenant = await databases.getDocument(
+                env.APPWRITE_DATABASE_ID,
+                env.COLLECTION_TENANTS,
+                trimmed
+            );
+            return (tenant as any).$id || trimmed;
+        } catch {
+            // fall through
+        }
+
+        try {
+            const byCollegeId = await databases.listDocuments(
+                env.APPWRITE_DATABASE_ID,
+                env.COLLECTION_TENANTS,
+                [Query.equal('collegeId', trimmed), Query.limit(1)]
+            );
+            if (byCollegeId.total > 0) {
+                return (byCollegeId.documents[0] as any).$id || null;
+            }
+        } catch {
+            // fall through
+        }
+
+        try {
+            const byTag = await databases.listDocuments(
+                env.APPWRITE_DATABASE_ID,
+                env.COLLECTION_TENANTS,
+                [Query.equal('tag', trimmed.toLowerCase()), Query.limit(1)]
+            );
+            if (byTag.total > 0) {
+                return (byTag.documents[0] as any).$id || null;
+            }
+        } catch {
+            // fall through
+        }
+
+        return trimmed;
+    }
+
+    private async loginStudentViaTable(studentId: string, password: string) {
+        const normalizedInput = studentId.trim();
+
+        let studentDoc: any = null;
+        try {
+            studentDoc = await databases.getDocument(
+                env.APPWRITE_DATABASE_ID,
+                env.COLLECTION_STUDENTS,
+                normalizedInput
+            );
+        } catch {
+            studentDoc = null;
+        }
+
+        if (!studentDoc) {
+            throw new AuthenticationError('Invalid student ID or password');
+        }
+
+        const storedPassword = studentDoc.password as string | undefined;
+
+        if (storedPassword !== password) {
+            throw new AuthenticationError('Invalid student ID or password');
+        }
+
+        const tenantRef = this.extractTenantId(studentDoc.colleges) ?? studentDoc.tenantId ?? null;
+        const tenantId = await this.normalizeTenantId(tenantRef);
+
+        const token = this.signToken({
+            userId: studentDoc.$id,
+            email: studentDoc.email || '',
+            name: studentDoc.name || studentId,
+            role: 'student',
+            tenantId,
+            companyId: null,
+        });
+
+        return {
+            token,
+            user: {
+                id: studentDoc.$id,
+                name: studentDoc.name || '',
+                email: studentDoc.email || '',
+                role: 'student',
+                tenantId,
+                companyId: null,
+            },
+        };
+    }
+
+    private async resolveStudentTenantId(email: string): Promise<string | null> {
+        let studentDoc: any = null;
+
+        try {
+            const docs = await databases.listDocuments(
+                env.APPWRITE_DATABASE_ID,
+                env.COLLECTION_STUDENTS,
+                [Query.equal('email', email), Query.limit(1)]
+            );
+            if (docs.total > 0) studentDoc = docs.documents[0];
+        } catch {
+            // Attribute might not exist yet.
+        }
+
+        if (!studentDoc) {
+            console.error(`[Auth] No student document found for email: ${email}`);
+            return null;
+        }
+
+        const tenantRef = this.extractTenantId(studentDoc.colleges) ?? studentDoc.tenantId ?? null;
+        return this.normalizeTenantId(tenantRef);
+    }
+
+    private async resolveCompanyContext(email: string): Promise<{ tenantId: string | null; companyId: string | null }> {
+        try {
+            const docs = await databases.listDocuments(
+                env.APPWRITE_DATABASE_ID,
+                env.COLLECTION_COMPANIES,
+                [Query.equal('contactEmail', email), Query.limit(1)]
+            );
+
+            if (docs.total === 0) {
+                console.error(`[Auth] No company document found for email: ${email}`);
+                return { tenantId: null, companyId: null };
+            }
+
+            const companyDoc = docs.documents[0];
+            const tenantRef = this.extractTenantId(companyDoc.colleges) ?? companyDoc.tenantId ?? null;
+            return {
+                tenantId: await this.normalizeTenantId(tenantRef),
+                companyId: companyDoc.$id,
+            };
+        } catch (error) {
+            console.error('[Auth] Failed to lookup company context:', error);
+            return { tenantId: null, companyId: null };
+        }
+    }
+
+    private async resolveAdminTenantId(email: string): Promise<string | null> {
+        const userDocs = await databases.listDocuments(
+            env.APPWRITE_DATABASE_ID,
+            env.COLLECTION_ADMINS,
+            [Query.equal('email', email), Query.limit(1)]
+        );
+
+        if (userDocs.total === 0) {
+            return null;
+        }
+
+        const userDoc = userDocs.documents[0];
+        const tenantRef = this.extractTenantId(userDoc.colleges) ?? userDoc.tenantId ?? null;
+        return this.normalizeTenantId(tenantRef);
+    }
+
     /**
      * Login: Validate credentials via Appwrite, check labels, issue JWT.
      */
-    async login(email: string, password: string) {
+    async login(email: string | undefined, password: string, studentId?: string) {
+        if (studentId) {
+            const normalizedStudentId = studentId.trim();
+            if (!normalizedStudentId) {
+                throw new AuthenticationError('Student ID is required');
+            }
+            return this.loginStudentViaTable(normalizedStudentId, password);
+        }
+
+        if (!email) {
+            throw new AuthenticationError('Email is required');
+        }
+
         // Create a client WITHOUT API key (acts like a client SDK to verify password)
         const tempClient = new Client()
             .setEndpoint(env.APPWRITE_ENDPOINT)
@@ -35,59 +217,30 @@ export class AuthService {
 
         // Look up tenantId from the appropriate collection based on role
         let tenantId: string | null = null;
+        let companyId: string | null = null;
         try {
             if (role === 'student') {
-                // Students: find by email (most reliable), fallback to userid
-                let studentDoc: any = null;
-
-                try {
-                    const docs = await databases.listDocuments(
-                        env.APPWRITE_DATABASE_ID,
-                        env.COLLECTION_STUDENTS,
-                        [Query.equal('email', appwriteUser.email), Query.limit(1)]
-                    );
-                    if (docs.total > 0) studentDoc = docs.documents[0];
-                } catch { /* attribute might not exist */ }
-
-                if (!studentDoc) {
-                    try {
-                        const docs = await databases.listDocuments(
-                            env.APPWRITE_DATABASE_ID,
-                            env.COLLECTION_STUDENTS,
-                            [Query.equal('userid', appwriteUser.$id), Query.limit(1)]
-                        );
-                        if (docs.total > 0) studentDoc = docs.documents[0];
-                    } catch { /* attribute might not exist */ }
-                }
-
-                if (studentDoc) {
-                    // Extract tenantId from colleges relationship
-                    tenantId = this.extractTenantId(studentDoc.colleges);
-                } else {
-                    console.error(`[Auth] No student document found for email: ${appwriteUser.email}`);
-                }
+                tenantId = await this.resolveStudentTenantId(appwriteUser.email);
+            } else if (role === 'company') {
+                const companyContext = await this.resolveCompanyContext(appwriteUser.email);
+                tenantId = companyContext.tenantId;
+                companyId = companyContext.companyId;
             } else {
-                // TPO / Admin: look up in users/admins collection by email
-                const userDocs = await databases.listDocuments(
-                    env.APPWRITE_DATABASE_ID,
-                    env.COLLECTION_ADMINS,
-                    [Query.equal('email', appwriteUser.email), Query.limit(1)]
-                );
-                if (userDocs.total > 0) {
-                    const userDoc = userDocs.documents[0];
-                    tenantId = this.extractTenantId(userDoc.colleges) ?? userDoc.tenantId ?? null;
-                }
+                tenantId = await this.resolveAdminTenantId(appwriteUser.email);
             }
         } catch (error) {
             console.error('[Auth] Failed to lookup tenantId:', error);
         }
 
         // Create a JWT signed by our server
-        const token = jwt.sign(
-            { userId: appwriteUser.$id, email: appwriteUser.email, name: appwriteUser.name, role, tenantId },
-            env.JWT_SECRET,
-            { expiresIn: '24h' }
-        );
+        const token = this.signToken({
+            userId: appwriteUser.$id,
+            email: appwriteUser.email,
+            name: appwriteUser.name,
+            role,
+            tenantId,
+            companyId,
+        });
 
         return {
             token,
@@ -97,6 +250,7 @@ export class AuthService {
                 email: appwriteUser.email,
                 role,
                 tenantId,
+                companyId,
             },
         };
     }

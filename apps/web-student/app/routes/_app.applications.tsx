@@ -6,6 +6,7 @@ import { json } from '@remix-run/node';
 import { useLoaderData } from '@remix-run/react';
 import { requireUserSession } from '~/auth.server';
 import { api } from '@careernest/lib';
+import { StudentMetricCard, StudentMetricGrid, StudentPageHero } from '~/components/StudentPageHero';
 
 export const meta: MetaFunction = () => [{ title: 'Applications – Student – CareerNest' }];
 
@@ -77,12 +78,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export default function Applications() {
     const { applications } = useLoaderData<typeof loader>() as { applications: AppItem[] };
     const [activeTab, setActiveTab] = useState('all');
+    const activeCount = applications.filter(a => !['selected', 'rejected'].includes(a.stage)).length;
+    const selectedCount = applications.filter(a => a.stage === 'selected').length;
+    const rejectedCount = applications.filter(a => a.stage === 'rejected').length;
 
     const tabs = [
         { id: 'all', label: 'All', count: applications.length },
-        { id: 'active', label: 'In Progress', count: applications.filter(a => !['selected', 'rejected'].includes(a.stage)).length },
-        { id: 'selected', label: 'Selected', count: applications.filter(a => a.stage === 'selected').length },
-        { id: 'rejected', label: 'Rejected', count: applications.filter(a => a.stage === 'rejected').length },
+        { id: 'active', label: 'In Progress', count: activeCount },
+        { id: 'selected', label: 'Selected', count: selectedCount },
+        { id: 'rejected', label: 'Rejected', count: rejectedCount },
     ];
 
     const filtered = applications.filter((a) => {
@@ -93,60 +97,81 @@ export default function Applications() {
 
     return (
         <div className="space-y-6 animate-fade-in">
-            {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-surface-900">My Applications</h1>
-                <p className="text-surface-500 mt-1">Track your placement application status in real-time</p>
-            </div>
+            <StudentPageHero
+                tone="amber"
+                badge="Application tracker"
+                title="Every application stage in one timeline"
+                description="Filter by progress, see where you are stuck, and know which opportunities are still alive without jumping between pages."
+                aside={
+                    <div className="space-y-4">
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">
+                                Current status
+                            </p>
+                            <p className="mt-2 text-2xl font-bold text-white">
+                                {activeCount > 0 ? `${activeCount} active` : 'No active pipelines'}
+                            </p>
+                            <p className="mt-2 text-sm leading-6 text-white/75">
+                                {activeCount > 0
+                                    ? 'Keep an eye on review and interview stages so nothing goes stale.'
+                                    : 'Apply to new drives to start filling your pipeline.'}
+                            </p>
+                        </div>
 
-            {/* Summary Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className="!p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-blue-50 text-blue-600"><FileText size={18} /></div>
-                        <div>
-                            <p className="text-2xl font-bold text-surface-900">{applications.length}</p>
-                            <p className="text-xs text-surface-500">Total Applied</p>
+                        <div className="rounded-[1.5rem] border border-white/10 bg-white/10 p-4">
+                            <div className="flex items-center justify-between text-sm text-white/75">
+                                <span>Selected</span>
+                                <span className="text-lg font-bold text-white">{selectedCount}</span>
+                            </div>
+                            <div className="mt-3 flex items-center justify-between text-sm text-white/75">
+                                <span>Rejected</span>
+                                <span className="font-semibold text-white">{rejectedCount}</span>
+                            </div>
                         </div>
                     </div>
-                </Card>
-                <Card className="!p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-amber-50 text-amber-600"><Clock size={18} /></div>
-                        <div>
-                            <p className="text-2xl font-bold text-surface-900">{applications.filter(a => !['selected', 'rejected'].includes(a.stage)).length}</p>
-                            <p className="text-xs text-surface-500">In Progress</p>
-                        </div>
-                    </div>
-                </Card>
-                <Card className="!p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600"><CheckCircle2 size={18} /></div>
-                        <div>
-                            <p className="text-2xl font-bold text-surface-900">{applications.filter(a => a.stage === 'selected').length}</p>
-                            <p className="text-xs text-surface-500">Selected</p>
-                        </div>
-                    </div>
-                </Card>
-                <Card className="!p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-rose-50 text-rose-600"><XCircle size={18} /></div>
-                        <div>
-                            <p className="text-2xl font-bold text-surface-900">{applications.filter(a => a.stage === 'rejected').length}</p>
-                            <p className="text-xs text-surface-500">Rejected</p>
-                        </div>
-                    </div>
-                </Card>
-            </div>
+                }
+            />
 
-            {/* Tabs */}
-            <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
+            <StudentMetricGrid>
+                <StudentMetricCard
+                    label="Total Applied"
+                    value={applications.length}
+                    hint="All applications you have submitted."
+                    icon={<FileText size={20} />}
+                    tone="sky"
+                />
+                <StudentMetricCard
+                    label="In Progress"
+                    value={activeCount}
+                    hint="Applications still moving through the funnel."
+                    icon={<Clock size={20} />}
+                    tone="amber"
+                />
+                <StudentMetricCard
+                    label="Selected"
+                    value={selectedCount}
+                    hint="Wins that made it through to the end."
+                    icon={<CheckCircle2 size={20} />}
+                    tone="emerald"
+                />
+                <StudentMetricCard
+                    label="Rejected"
+                    value={rejectedCount}
+                    hint="Completed loops you can learn from."
+                    icon={<XCircle size={20} />}
+                    tone="ink"
+                />
+            </StudentMetricGrid>
+
+            <Card className="student-filter-bar !p-2">
+                <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
+            </Card>
 
             {/* Application Cards */}
             {filtered.length > 0 ? (
                 <div className="space-y-4">
                     {filtered.map((app) => (
-                        <Card key={app.id} className="!p-0 overflow-hidden">
+                        <Card key={app.id} className="student-surface-card !p-0 overflow-hidden">
                             <div className="p-5">
                                 <div className="flex items-center gap-4">
                                     <Avatar name={app.company || app.driveTitle} size="md" />
@@ -182,7 +207,7 @@ export default function Applications() {
                     ))}
                 </div>
             ) : (
-                <Card>
+                <Card className="student-surface-card">
                     <EmptyState
                         icon={<Briefcase size={28} />}
                         title="No applications yet"

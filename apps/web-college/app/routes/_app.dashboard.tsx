@@ -20,7 +20,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         api.students.list(token, `tenantId=${tenantId}&limit=500`).catch(() => ({ data: [], total: 0 })) as Promise<{ data: any[]; total: number }>,
     ]);
 
-    const totalStudents = studentsRes.total || 0;
+    const totalStudents = Number(studentsRes.total ?? (studentsRes.data || []).length);
     const totalCompanies = companiesRes.total || 0;
     const totalDrives = drivesRes.total || 0;
     const totalPlacements = (studentsRes.data || []).filter((s: any) => s.isPlaced === true).length;

@@ -9,7 +9,8 @@ interface JWTPayload {
     email: string;
     name: string;
     role: Role;
-    tenantId?: string;
+    tenantId?: string | null;
+    companyId?: string | null;
 }
 
 /**
@@ -36,6 +37,7 @@ export async function authMiddleware(req: Request, _res: Response, next: NextFun
             name: decoded.name,
             role: decoded.role,
             tenantId: decoded.tenantId,
+            companyId: decoded.companyId,
         };
 
         next();

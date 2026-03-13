@@ -122,7 +122,7 @@ export default function AdminUsers() {
     const [searchParams, setSearchParams] = useSearchParams();
     const navigation = useNavigation();
     const isSubmitting = navigation.state === 'submitting';
-    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showCreateModal, setShowCreateModal] = useState(searchParams.get('action') === 'create');
     const [activeMenu, setActiveMenu] = useState<string | null>(null);
     const totalPages = Math.ceil(total / limit);
 

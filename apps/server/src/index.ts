@@ -14,6 +14,7 @@ import companyRoutes from './routes/company.routes';
 import driveRoutes from './routes/drive.routes';
 import applicationRoutes from './routes/application.routes';
 import studentRoutes from './routes/student.routes';
+import campusChatRoutes from './routes/campus-chat.routes';
 import courseRoutes from './routes/course.routes';
 import announcementRoutes from './routes/announcement.routes';
 import analyticsRoutes from './routes/analytics.routes';
@@ -25,8 +26,16 @@ import { registerAnalyticsJobs } from './jobs/analyticsJob';
 
 const app = express();
 
+// Trust proxy headers when running behind a reverse proxy (e.g., nginx)
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
+
 // ─── Global Middleware ───
-app.use(helmet());
+app.use(helmet({
+    // Disable CSP by default to avoid breaking apps; enable in production when policies are defined.
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+}));
 app.use(cors({
     origin: env.APP_URL,
     credentials: true,
@@ -53,6 +62,7 @@ app.use('/api/v1/companies', companyRoutes);
 app.use('/api/v1/drives', driveRoutes);
 app.use('/api/v1/applications', applicationRoutes);
 app.use('/api/v1/students', studentRoutes);
+app.use('/api/v1/campus-chat', campusChatRoutes);
 app.use('/api/v1/courses', courseRoutes);
 app.use('/api/v1/announcements', announcementRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
@@ -68,7 +78,12 @@ app.use((_req, res) => {
 
 // ─── Global Error Handler ───
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    console.error('[Error]', err);
+    // Avoid leaking stack traces in production logs
+    if (env.NODE_ENV === 'production') {
+        console.error('[Error]', err.message);
+    } else {
+        console.error('[Error]', err);
+    }
 
     if (err instanceof AppError) {
         sendError(res, err.statusCode, {

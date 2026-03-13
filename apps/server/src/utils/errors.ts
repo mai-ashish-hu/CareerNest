@@ -53,3 +53,9 @@ export class RateLimitError extends AppError {
         super(429, 'RATE_LIMIT_EXCEEDED', 'Too many requests. Please try again later.');
     }
 }
+
+export class ServiceUnavailableError extends AppError {
+    constructor(message: string = 'Upstream service is temporarily unavailable') {
+        super(503, 'SERVICE_UNAVAILABLE', message);
+    }
+}

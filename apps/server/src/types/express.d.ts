@@ -10,10 +10,11 @@ declare global {
                 name: string;
                 role: Role;
                 department?: string;
-                tenantId?: string;
+                tenantId?: string | null;
+                companyId?: string | null;
             };
             /** Resolved tenant ID for the current request */
-            tenantId?: string;
+            tenantId?: string | null;
         }
     }
 }

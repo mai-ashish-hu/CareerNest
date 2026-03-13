@@ -5,7 +5,7 @@ import { tenantMiddleware } from '../middleware/tenant.middleware';
 import { requireSuperAdmin, requireTPO } from '../middleware/role.middleware';
 import { validate } from '../middleware/validate.middleware';
 import { auditLog } from '../middleware/audit.middleware';
-import { createTenantSchema, updateTenantSchema } from '../validators/tenant.schema';
+import { createTenantSchema, updateTenantSchema, createDepartmentSchema } from '../validators/tenant.schema';
 import { ForbiddenError } from '../utils/errors';
 
 const router = Router();
@@ -19,6 +19,8 @@ router.use(authMiddleware, tenantMiddleware);
 function requireOwnTenant(req: Request, _res: Response, next: NextFunction): void {
     if (req.user?.role === 'super_admin') return next();
     if (req.tenantId && req.params.id === req.tenantId) return next();
+    // Backward compatibility: allow legacy token tenant key until users re-login.
+    if (req.user?.tenantId && req.params.id === req.user.tenantId) return next();
     next(new ForbiddenError('You can only access your own college'));
 }
 
@@ -28,6 +30,10 @@ router.get('/', requireSuperAdmin, tenantController.list);
 router.patch('/:id', requireSuperAdmin, validate(updateTenantSchema), auditLog('TENANT_UPDATE', 'tenant'), tenantController.update);
 
 // TPO can view their own tenant info & team
+router.get('/:id/departments', requireTPO, requireOwnTenant, tenantController.listDepartments);
+router.post('/:id/departments', requireTPO, requireOwnTenant, validate(createDepartmentSchema), auditLog('DEPARTMENT_CREATE', 'department'), tenantController.createDepartment);
+router.delete('/:id/departments/:departmentId', requireTPO, requireOwnTenant, auditLog('DEPARTMENT_DELETE', 'department'), tenantController.deleteDepartment);
+router.get('/:id/students', requireTPO, requireOwnTenant, tenantController.listStudents);
 router.get('/:id', requireTPO, requireOwnTenant, tenantController.getById);
 router.get('/:id/team', requireTPO, requireOwnTenant, tenantController.getTeamMembers);
 

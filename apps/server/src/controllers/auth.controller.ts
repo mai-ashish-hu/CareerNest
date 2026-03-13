@@ -5,9 +5,9 @@ import { sendSuccess, sendMessage } from '../utils/response';
 export class AuthController {
     async login(req: Request, res: Response, next: NextFunction) {
         try {
-            const { email, password } = req.body;
+            const { email, studentId, password } = req.body;
             // Returns { token (session secret), user }
-            const result = await authService.login(email, password);
+            const result = await authService.login(email, password, studentId);
             sendSuccess(res, result);
         } catch (error) {
             next(error);

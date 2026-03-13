@@ -5,19 +5,18 @@ import { requireUserSession } from '~/auth.server';
 import { Sidebar } from '~/components/Sidebar';
 import { Header } from '~/components/Header';
 import {
-    LayoutDashboard,
-    Building2,
-    Users,
-    Briefcase,
-    GraduationCap,
     BarChart3,
-    Shield,
+    Bell,
+    Briefcase,
+    Building2,
+    CreditCard,
+    FileText,
+    GraduationCap,
+    LayoutDashboard,
     ScrollText,
     Settings,
-    Bell,
-    CreditCard,
-    Activity,
-    FileText,
+    Shield,
+    Users,
 } from 'lucide-react';
 
 const sidebarSections = [
@@ -67,12 +66,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export default function AdminLayout() {
     const { user } = useLoaderData<typeof loader>();
+
     return (
-        <div className="flex min-h-screen bg-surface-50">
+        <div className="min-h-screen bg-slate-100">
             <Sidebar sections={sidebarSections} />
-            <div className="flex-1 ml-64">
+            <div className="ml-64 min-h-screen">
                 <Header userName={user.name} userRole={user.role} />
-                <main className="p-8"><Outlet /></main>
+                <main className="mx-auto max-w-[1440px] px-6 py-6">
+                    <Outlet />
+                </main>
             </div>
         </div>
     );

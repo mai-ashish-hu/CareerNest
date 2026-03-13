@@ -1,6 +1,7 @@
 export interface Tenant {
     $id: string;
     collegeId: string;
+    tag: string;
     collegeName: string;
     address: string;
     city: string;
@@ -25,6 +26,7 @@ export interface TenantAdminInput {
 
 export interface CreateTenantInput {
     collegeId: string;
+    tag: string;
     collegeName: string;
     address: string;
     city: string;
@@ -38,6 +40,7 @@ export interface CreateTenantInput {
 }
 
 export interface UpdateTenantInput {
+    tag?: string;
     collegeName?: string;
     address?: string;
     city?: string;

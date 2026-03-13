@@ -1,0 +1,14 @@
+hey now let's work on student profile section!!
+
+I want it to be like linkedin and also i want some features like linkdin in this platform like searching students
+
+now this will work like, if i'm student of A college so i can only search student who are inside my campus by there name, A college student can't see B college student Profile in profile they can only see things like there profile
+no contact details like email number or address, they can only see there other things which that student have put in his/her profile like skills acheviments etcc..
+
+and in side bar create a chat server there peoples can chat with the students inside there colleges!
+
+
+
+for student profile use this details which i previously used in firebase 
+
+I'll give you schema which i had use

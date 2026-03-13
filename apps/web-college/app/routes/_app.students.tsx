@@ -9,11 +9,18 @@ import { api } from '@careernest/lib';
 
 export const meta: MetaFunction = () => [{ title: 'Students – College – CareerNest' }];
 
+interface Department {
+    id: string;
+    name: string;
+}
+
 interface Student {
     id: string;
+    studentId: string;
     name: string;
     email: string;
     department: string;
+    departmentId: string;
     enrollmentYear: number;
     phoneNumber: number;
     address: string;
@@ -24,21 +31,42 @@ export async function loader({ request }: LoaderFunctionArgs) {
     if ((user.role !== 'tpo' && user.role !== 'tpo_assistant') || !user.tenantId) throw redirect('/login');
     const tenantId = user.tenantId;
 
-    const [studentsRes] = await Promise.all([
+    const [studentsRes, departmentsRes] = await Promise.all([
         api.students.list(token, `tenantId=${tenantId}&limit=500`).catch(() => ({ data: [], total: 0 })) as Promise<{ data: any[]; total: number }>,
+        api.tenants.listDepartments(token, tenantId).catch(() => ({ data: [] })) as Promise<{ data: any[] }>,
     ]);
 
-    const students: Student[] = (studentsRes.data || []).map((s: any) => ({
-        id: s.$id || s.id || '',
-        name: s.name || '',
-        email: s.email || '',
-        department: s.department || '',
-        enrollmentYear: s.enrollmentYear ?? 0,
-        phoneNumber: s.phoneNumber ?? 0,
-        address: s.address || '',
+    const departments: Department[] = (departmentsRes.data || []).map((d: any) => ({
+        id: d.$id || d.id || '',
+        name: d.departmentName || d.name || '',
     }));
 
-    return json({ students });
+    const students: Student[] = (studentsRes.data || []).map((s: any) => {
+        const dept = s.departements || s.departments || s.department;
+        let departmentName = '';
+        let departmentId = '';
+        if (typeof dept === 'object' && dept !== null) {
+            departmentName = dept.departmentName || dept.name || '';
+            departmentId = dept.$id || '';
+        } else if (typeof dept === 'string') {
+            departmentName = dept;
+            departmentId = dept;
+        }
+
+        return {
+            id: s.$id || s.id || '',
+            studentId: s.$id || s.id || '',
+            name: s.name || '',
+            email: s.email || '',
+            department: departmentName,
+            departmentId,
+            enrollmentYear: s.enrollmentYear ?? 0,
+            phoneNumber: s.phoneNumber ?? 0,
+            address: s.address || '',
+        };
+    });
+
+    return json({ students, departments });
 }
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -50,9 +78,10 @@ export async function action({ request }: ActionFunctionArgs) {
 
     if (intent === 'single') {
         const payload = {
+            studentId: form.get('studentId') as string,
+            password: form.get('password') as string,
             name: form.get('name') as string,
             email: form.get('email') as string,
-            password: form.get('password') as string,
             department: form.get('department') as string,
             enrollmentYear: Number(form.get('enrollmentYear')),
             phoneNumber: Number(form.get('phoneNumber')),
@@ -74,8 +103,7 @@ export async function action({ request }: ActionFunctionArgs) {
             const lines = csvData.trim().split('\n');
             const header = lines[0].split(',').map(h => h.trim().toLowerCase());
 
-            // Validate required columns
-            const requiredCols = ['name', 'email', 'password', 'department', 'enrollmentyear', 'phonenumber', 'address'];
+            const requiredCols = ['studentid', 'password', 'name', 'email', 'department', 'enrollmentyear', 'phonenumber', 'address'];
             const missing = requiredCols.filter(c => !header.includes(c));
             if (missing.length > 0) return json({ error: `Missing CSV columns: ${missing.join(', ')}` }, { status: 400 });
 
@@ -88,9 +116,10 @@ export async function action({ request }: ActionFunctionArgs) {
                 header.forEach((h, idx) => { row[h] = values[idx] || ''; });
 
                 students.push({
+                    studentId: row['studentid'],
+                    password: row['password'],
                     name: row['name'],
                     email: row['email'],
-                    password: row['password'],
                     department: row['department'],
                     enrollmentYear: Number(row['enrollmentyear']),
                     phoneNumber: Number(row['phonenumber']),
@@ -118,7 +147,7 @@ export async function action({ request }: ActionFunctionArgs) {
 }
 
 export default function Students() {
-    const { students } = useLoaderData<typeof loader>() as { students: Student[] };
+    const { students, departments } = useLoaderData<typeof loader>() as { students: Student[]; departments: Department[] };
     const fetcher = useFetcher<{ success?: boolean; error?: string; bulkResult?: { total: number; succeeded: number; failed: { email: string; error: string }[] } }>();
     const [showModal, setShowModal] = useState(false);
     const [addMode, setAddMode] = useState<'single' | 'bulk'>('single');
@@ -134,14 +163,13 @@ export default function Students() {
         }
     }, [fetcher.data]);
 
-    const departments = ['CSE', 'IT', 'ECE', 'EE', 'ME', 'CE', 'Civil', 'BBA', 'MBA', 'MCA'];
-
     const filtered = students.filter((s) => {
         const q = searchQuery.toLowerCase();
         const matchSearch = s.name.toLowerCase().includes(q) ||
             s.email.toLowerCase().includes(q) ||
+            s.studentId.toLowerCase().includes(q) ||
             s.department.toLowerCase().includes(q);
-        const matchDept = !deptFilter || s.department === deptFilter;
+        const matchDept = !deptFilter || s.departmentId === deptFilter || s.department === deptFilter;
         return matchSearch && matchDept;
     });
 
@@ -164,7 +192,7 @@ export default function Students() {
                     <Avatar name={row.name} size="sm" />
                     <div>
                         <p className="font-medium text-surface-900">{row.name}</p>
-                        <p className="text-xs text-surface-400">{row.email}</p>
+                        <p className="text-xs text-surface-400">{row.studentId} • {row.email}</p>
                     </div>
                 </div>
             ),
@@ -172,7 +200,7 @@ export default function Students() {
         {
             header: 'Department',
             accessor: (row: Student) => (
-                <Badge variant="bg-primary-50 text-primary-700">{row.department}</Badge>
+                <Badge variant="bg-primary-50 text-primary-700">{row.department || '—'}</Badge>
             ),
         },
         {
@@ -261,7 +289,7 @@ export default function Students() {
                         <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" />
                         <input
                             type="text"
-                            placeholder="Search by name, email or department..."
+                            placeholder="Search by student ID, name, email or department..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-surface-200 bg-surface-50 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
@@ -270,10 +298,10 @@ export default function Students() {
                     <select
                         value={deptFilter}
                         onChange={(e) => setDeptFilter(e.target.value)}
-                        className="form-input w-40 !py-2.5"
+                        className="form-input w-48 !py-2.5"
                     >
                         <option value="">All Departments</option>
-                        {departments.map(d => <option key={d} value={d}>{d}</option>)}
+                        {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                     </select>
                 </div>
             </Card>
@@ -315,20 +343,24 @@ export default function Students() {
                     <fetcher.Form method="post" className="space-y-4">
                         <input type="hidden" name="intent" value="single" />
                         <div className="grid grid-cols-2 gap-4">
+                            <Input name="studentId" label="Student ID (PRN / Registration No.)" placeholder="e.g., 22CSE001" required />
+                            <Input name="password" label="Password" type="password" placeholder="Set student password" required />
                             <Input name="name" label="Full Name" placeholder="e.g., Rahul Sharma" required />
                             <Input name="email" label="Email" type="email" placeholder="e.g., rahul@college.edu" required />
-                            <Input name="password" label="Password" type="password" placeholder="Min 8 characters" required />
                             <div>
                                 <label className="form-label">Department</label>
                                 <select name="department" className="form-input" required>
                                     <option value="">Select department</option>
-                                    {departments.map(d => <option key={d} value={d}>{d}</option>)}
+                                    {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                                 </select>
                             </div>
                             <Input name="enrollmentYear" label="Enrollment Year" type="number" placeholder="e.g., 2023" required />
                             <Input name="phoneNumber" label="Phone Number" type="number" placeholder="e.g., 9876543210" required />
                             <div className="col-span-2">
                                 <Input name="address" label="Address" placeholder="e.g., 123 Main St, City, State" required />
+                            </div>
+                            <div className="col-span-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                                The Student ID will be used as the login ID.
                             </div>
                         </div>
 
@@ -355,10 +387,29 @@ export default function Students() {
                             <h4 className="text-sm font-semibold text-blue-800 mb-2">CSV Format Required</h4>
                             <p className="text-xs text-blue-600 mb-2">Your CSV file must have these exact column headers (case-insensitive):</p>
                             <code className="block text-xs bg-white px-3 py-2 rounded-lg text-blue-700 font-mono">
-                                name,email,password,department,enrollmentYear,phoneNumber,address
+                                studentId,password,name,email,department,enrollmentYear,phoneNumber,address
                             </code>
-                            <p className="text-xs text-blue-500 mt-2">Example row: Rahul Sharma,rahul@college.edu,Pass@1234,CSE,2023,9876543210,Mumbai</p>
+                            <p className="text-xs text-blue-500 mt-2">Example: 22CSE001,secret123,Rahul Sharma,rahul@college.edu,dept_cse_id,2023,9876543210,Mumbai</p>
+                            <p className="text-xs text-blue-500 mt-1">
+                                <strong>department</strong> column should contain the department ID from your departments list.
+                            </p>
                         </div>
+
+                        {/* Department Reference */}
+                        {departments.length > 0 && (
+                            <div className="p-3 rounded-xl bg-surface-50 border border-surface-200">
+                                <h4 className="text-xs font-semibold text-surface-600 mb-2">Department IDs Reference</h4>
+                                <div className="flex flex-wrap gap-2">
+                                    {departments.map(d => (
+                                        <span key={d.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white border border-surface-200 text-xs">
+                                            <span className="font-medium text-surface-800">{d.name}</span>
+                                            <span className="text-surface-400">→</span>
+                                            <code className="text-primary-600">{d.id}</code>
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         {/* File Upload */}
                         <div

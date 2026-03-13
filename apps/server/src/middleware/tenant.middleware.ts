@@ -49,31 +49,30 @@ function extractTenantId(colleges: unknown): string | null {
 async function resolveTenantFromDB(userId: string, email: string, role: string): Promise<string | null> {
     try {
         if (role === 'student') {
-            // Try by email first (reliable), then by userid field
+            // Try by document ID first (new flow), then fallback to email.
             let studentDoc: any = null;
 
             try {
-                const docs = await databases.listDocuments(
+                studentDoc = await databases.getDocument(
                     env.APPWRITE_DATABASE_ID,
                     env.COLLECTION_STUDENTS,
-                    [Query.equal('email', email), Query.limit(1)]
+                    userId
                 );
-                if (docs.total > 0) studentDoc = docs.documents[0];
-            } catch { /* attribute might not exist */ }
+            } catch { /* ignore */ }
 
             if (!studentDoc) {
                 try {
                     const docs = await databases.listDocuments(
                         env.APPWRITE_DATABASE_ID,
                         env.COLLECTION_STUDENTS,
-                        [Query.equal('userid', userId), Query.limit(1)]
+                        [Query.equal('email', email), Query.limit(1)]
                     );
                     if (docs.total > 0) studentDoc = docs.documents[0];
                 } catch { /* attribute might not exist */ }
             }
 
             if (studentDoc) {
-                return extractTenantId(studentDoc.colleges);
+                return extractTenantId(studentDoc.colleges) ?? studentDoc.tenantId ?? null;
             }
         } else if (role === 'company') {
             // Companies: try by email
@@ -108,6 +107,54 @@ async function resolveTenantFromDB(userId: string, email: string, role: string):
 }
 
 /**
+ * Normalize tenant references to canonical tenant document ID.
+ * Supports direct document ID and legacy `collegeId` values.
+ */
+async function resolveCanonicalTenantId(tenantRef: string): Promise<string | null> {
+    const trimmedRef = tenantRef.trim();
+    if (!trimmedRef) return null;
+
+    try {
+        const tenant = await databases.getDocument(
+            env.APPWRITE_DATABASE_ID,
+            env.COLLECTION_TENANTS,
+            trimmedRef
+        );
+        return (tenant as any).$id || trimmedRef;
+    } catch {
+        // Fall through to legacy lookup.
+    }
+
+    try {
+        const byCollegeId = await databases.listDocuments(
+            env.APPWRITE_DATABASE_ID,
+            env.COLLECTION_TENANTS,
+            [Query.equal('collegeId', trimmedRef), Query.limit(1)]
+        );
+        if (byCollegeId.total > 0) {
+            return (byCollegeId.documents[0] as any).$id || null;
+        }
+    } catch {
+        // Ignore and continue fallback checks.
+    }
+
+    try {
+        const byTag = await databases.listDocuments(
+            env.APPWRITE_DATABASE_ID,
+            env.COLLECTION_TENANTS,
+            [Query.equal('tag', trimmedRef.toLowerCase()), Query.limit(1)]
+        );
+        if (byTag.total > 0) {
+            return (byTag.documents[0] as any).$id || null;
+        }
+    } catch {
+        // Ignore and continue fallback checks.
+    }
+
+    return null;
+}
+
+/**
  * Tenant middleware: Resolves tenantId from the authenticated user's token
  * and attaches it to req.tenantId for downstream use.
  * Super Admin can optionally specify a target tenant via query param.
@@ -126,20 +173,30 @@ export async function tenantMiddleware(req: Request, _res: Response, next: NextF
             // Super admin without target tenant - global access
             req.tenantId = undefined;
         } else {
-            // All other roles use their own tenant
-            req.tenantId = req.user.tenantId;
+            const cached = getCachedTenantId(req.user.$id);
+            if (cached) {
+                req.tenantId = cached;
+            } else {
+                // All other roles use their own tenant
+                req.tenantId = req.user.tenantId;
 
-            // Fallback: resolve from DB if tenantId is missing from JWT
-            if (!req.tenantId) {
-                // Check cache first
-                const cached = getCachedTenantId(req.user.$id);
-                if (cached) {
-                    req.tenantId = cached;
-                } else {
-                    const resolved = await resolveTenantFromDB(req.user.$id, req.user.email, req.user.role);
-                    if (resolved) {
-                        req.tenantId = resolved;
-                        setCachedTenantId(req.user.$id, resolved);
+                // Fallback: resolve from DB if tenantId is missing from JWT
+                if (!req.tenantId) {
+                    req.tenantId = await resolveTenantFromDB(req.user.$id, req.user.email, req.user.role);
+                }
+
+                if (req.tenantId) {
+                    const canonicalFromToken = await resolveCanonicalTenantId(req.tenantId);
+                    if (canonicalFromToken) {
+                        req.tenantId = canonicalFromToken;
+                    } else {
+                        const resolvedFromDb = await resolveTenantFromDB(req.user.$id, req.user.email, req.user.role);
+                        if (resolvedFromDb) {
+                            req.tenantId = await resolveCanonicalTenantId(resolvedFromDb) ?? resolvedFromDb;
+                        }
+                    }
+                    if (req.tenantId) {
+                        setCachedTenantId(req.user.$id, req.tenantId);
                     }
                 }
             }

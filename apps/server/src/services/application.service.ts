@@ -36,19 +36,17 @@ export class ApplicationService {
             throw new ConflictError('Application deadline has passed');
         }
 
-        // Get student profile for eligibility check
-        // Field is 'userid' (lowercase) per the students collection schema
-        const students = await databases.listDocuments(
-            this.databaseId,
-            env.COLLECTION_STUDENTS,
-            [Query.equal('userid', studentId), Query.limit(1)]
-        );
-
-        if (students.total === 0) {
+        // Get student profile for eligibility check (studentId is the student document ID)
+        let student: any;
+        try {
+            student = await databases.getDocument(
+                this.databaseId,
+                env.COLLECTION_STUDENTS,
+                studentId
+            );
+        } catch {
             throw new NotFoundError('Student profile');
         }
-
-        const student = students.documents[0];
 
         // Construct eligibility rules from drive's direct fields (CGPA, Backlogs, department)
         const eligibilityRules = {
@@ -61,11 +59,15 @@ export class ApplicationService {
 
         // Check eligibility only when rules are meaningful
         if (eligibilityRules.departments.length > 0) {
+            const deptField = (student as any).departements || (student as any).departments || student.department;
+            const studentDept = typeof deptField === 'object' && deptField !== null
+                ? (deptField.$id || deptField.departmentName || '')
+                : String(deptField || '');
             scoringService.enforceEligibility(
                 {
                     CGPA: (student.CGPA as number) ?? 0,
                     backlogs: (student.backlogs as number) ?? 0,
-                    department: student.department as string,
+                    department: studentDept,
                 },
                 eligibilityRules
             );
@@ -101,7 +103,7 @@ export class ApplicationService {
         return application;
     }
 
-    async getById(applicationId: string, tenantId?: string) {
+    async getById(applicationId: string, tenantId?: string | null) {
         try {
             const application = await databases.getDocument(this.databaseId, this.collectionId, applicationId);
 
@@ -140,8 +142,12 @@ export class ApplicationService {
         };
     }
 
-    async updateStage(applicationId: string, tenantId: string, newStage: ApplicationStage) {
+    async updateStage(applicationId: string, tenantId: string, newStage: ApplicationStage, companyId?: string | null) {
         const application = await this.getById(applicationId, tenantId);
+
+        if (companyId) {
+            await driveService.getById(application.driveId as string, tenantId, companyId);
+        }
 
         // Validate stage transition
         scoringService.validateStageTransition(
@@ -192,19 +198,12 @@ export class ApplicationService {
                 }
             );
 
-            // Update student isPlaced status
-            // Field is 'userid' (lowercase) per the students collection schema
-            const students = await databases.listDocuments(
-                this.databaseId,
-                env.COLLECTION_STUDENTS,
-                [Query.equal('userid', application.studentId as string), Query.limit(1)]
-            );
-
-            if (students.total > 0) {
+            // Update student isPlaced status (studentId is the student document ID)
+            if (application.studentId) {
                 await databases.updateDocument(
                     this.databaseId,
                     env.COLLECTION_STUDENTS,
-                    students.documents[0].$id,
+                    application.studentId as string,
                     { isPlaced: true }
                 );
             }

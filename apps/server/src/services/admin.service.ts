@@ -251,6 +251,7 @@ export class AdminService {
         name: string;
         password: string;
         role: string;
+        tenantId?: string;
     }) {
         const { ID } = await import('node-appwrite');
 
@@ -275,6 +276,34 @@ export class AdminService {
         const label = labelMap[data.role];
         if (label) {
             await appwriteUsers.updateLabels(newUser.$id, [label]);
+        }
+
+        // When tenantId is supplied and the role is a college-level role,
+        // create a user document in COLLECTION_ADMINS so the TPO/assistant
+        // can resolve their college on login.
+        const isCollegeRole = data.role === 'tpo' || data.role === 'tpo_assistant' || data.role === 'admin';
+        if (data.tenantId && isCollegeRole) {
+            const tenantId = data.tenantId.trim();
+            // Many-to-one relationship: colleges field expects a single document ID string.
+            const userDocPayloads: Array<Record<string, unknown>> = [
+                { name: data.name, email: data.email, colleges: tenantId, tenantId },
+                { name: data.name, email: data.email, colleges: tenantId },
+                { name: data.name, email: data.email, tenantId },
+                { name: data.name, email: data.email },
+            ];
+            for (const payload of userDocPayloads) {
+                try {
+                    await databases.createDocument(
+                        env.APPWRITE_DATABASE_ID,
+                        env.COLLECTION_ADMINS,
+                        ID.unique(),
+                        payload,
+                    );
+                    break;
+                } catch {
+                    // Try next payload variant
+                }
+            }
         }
 
         return {

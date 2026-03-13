@@ -1,5 +1,14 @@
 import { createCookieSessionStorage, redirect } from '@remix-run/node';
 
+export interface SessionUser {
+    id: string;
+    role: string;
+    name: string;
+    email: string;
+    tenantId?: string | null;
+    companyId?: string | null;
+}
+
 /**
  * Factory that creates portal-specific auth helpers.
  * Each portal (admin, college, student, company) MUST call this with a unique
@@ -39,7 +48,7 @@ export function createAuthHelpers(portalId: string, options?: { maxAge?: number 
     async function createUserSession(
         request: Request,
         token: string,
-        user: { id: string; role: string; name: string; email: string; tenantId?: string | null },
+        user: SessionUser,
         redirectTo: string
     ) {
         const session = await getSession(request);
@@ -52,7 +61,7 @@ export function createAuthHelpers(portalId: string, options?: { maxAge?: number 
         const session = await getSession(request);
         return {
             token: session.get('token') as string | undefined,
-            user: session.get('user') as { id: string; role: string; name: string; email: string; tenantId?: string | null } | undefined,
+            user: session.get('user') as SessionUser | undefined,
         };
     }
 

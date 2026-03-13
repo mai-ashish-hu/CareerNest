@@ -63,7 +63,7 @@ export class CompanyService {
                 contactEmail: data.contactEmail,
                 contactPhone: data.contactPhone,
                 contactPerson: data.contactPerson,
-                colleges: [tenantId],
+                colleges: tenantId,
             }
         );
 
@@ -86,7 +86,7 @@ export class CompanyService {
         return false;
     }
 
-    async getById(companyId: string, tenantId?: string) {
+    async getById(companyId: string, tenantId?: string | null) {
         try {
             const company = await databases.getDocument(this.databaseId, this.collectionId, companyId);
 
@@ -106,12 +106,17 @@ export class CompanyService {
         let total = 0;
 
         try {
-            const result = await databases.listDocuments(this.databaseId, this.collectionId, [
+            const queries = [
                 Query.equal('tenantId', tenantId),
                 Query.limit(limit),
                 Query.offset((page - 1) * limit),
                 Query.orderDesc('$createdAt'),
-            ]);
+            ];
+            if (status) {
+                queries.push(Query.equal('status', status));
+            }
+
+            const result = await databases.listDocuments(this.databaseId, this.collectionId, queries);
             companies = result.documents;
             total = result.total;
         } catch {
@@ -121,7 +126,12 @@ export class CompanyService {
                 Query.orderDesc('$createdAt'),
             ]);
 
-            companies = result.documents.filter((doc: any) => this.belongsToTenant(doc, tenantId));
+            companies = result.documents.filter((doc: any) => {
+                if (!this.belongsToTenant(doc, tenantId)) {
+                    return false;
+                }
+                return status ? doc.status === status : true;
+            });
             total = companies.length;
             const start = (page - 1) * limit;
             companies = companies.slice(start, start + limit);
