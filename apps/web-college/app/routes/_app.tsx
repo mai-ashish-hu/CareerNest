@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Outlet, useLoaderData } from '@remix-run/react';
 import type { LoaderFunctionArgs } from '@remix-run/node';
 import { json } from '@remix-run/node';
@@ -38,12 +39,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export default function AppLayout() {
     const { user, collegeName } = useLoaderData<typeof loader>() as any;
+    const [sidebarOpen, setSidebarOpen] = useState(false);
     return (
         <div className="flex min-h-screen bg-surface-50">
-            <Sidebar links={links} collegeName={collegeName} />
-            <div className="flex-1 ml-64">
-                <Header userName={user.name} userRole={user.role} collegeName={collegeName} />
-                <main className="p-8"><Outlet /></main>
+            <Sidebar links={links} collegeName={collegeName} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+            <div className="flex-1 lg:ml-64">
+                <Header userName={user.name} userRole={user.role} collegeName={collegeName} onMenuToggle={() => setSidebarOpen(true)} />
+                <main className="p-4 sm:p-6 lg:p-8"><Outlet /></main>
             </div>
         </div>
     );

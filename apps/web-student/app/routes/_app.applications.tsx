@@ -1,14 +1,24 @@
 import { useState } from 'react';
-import { FileText, CheckCircle2, Clock, XCircle, Calendar, Briefcase } from 'lucide-react';
+import { FileText, CheckCircle2, Clock, XCircle, Calendar, Briefcase, Video, MapPin, Phone } from 'lucide-react';
 import { Card, Badge, EmptyState, Avatar, Tabs, ProgressSteps } from '@careernest/ui';
 import type { MetaFunction, LoaderFunctionArgs } from '@remix-run/node';
 import { json } from '@remix-run/node';
-import { useLoaderData } from '@remix-run/react';
+import { useLoaderData, Link } from '@remix-run/react';
 import { requireUserSession } from '~/auth.server';
 import { api } from '@careernest/lib';
 import { StudentMetricCard, StudentMetricGrid, StudentPageHero } from '~/components/StudentPageHero';
 
 export const meta: MetaFunction = () => [{ title: 'Applications – Student – CareerNest' }];
+
+interface InterviewInfo {
+    id: string;
+    scheduledAt: string;
+    durationMinutes: number;
+    format: string;
+    roomId?: string;
+    interviewerName?: string;
+    status: string;
+}
 
 interface AppItem {
     id: string;
@@ -17,6 +27,7 @@ interface AppItem {
     stage: string;
     appliedAt: string;
     updatedAt: string;
+    interview?: InterviewInfo;
 }
 
 const applicationStages = [
@@ -37,26 +48,45 @@ const stageColors: Record<string, string> = {
     selected: 'bg-emerald-100 text-emerald-700', rejected: 'bg-rose-100 text-rose-700',
 };
 
+const formatIcon: Record<string, React.ReactNode> = {
+    video_call: <Video size={13} />,
+    in_person: <MapPin size={13} />,
+    phone: <Phone size={13} />,
+};
+
 export async function loader({ request }: LoaderFunctionArgs) {
     const { token, user } = await requireUserSession(request);
     const tenantId = user.tenantId;
 
-    // Fetch student's own applications (backend auto-filters by studentId for students)
-    const [appsRes, drivesRes] = await Promise.all([
+    // Fetch student's own applications, drives, and interviews in parallel
+    const [appsRes, drivesRes, interviewsRes] = await Promise.all([
         api.applications.list(token, 'limit=100').catch(() => ({ data: [], total: 0 })) as Promise<{ data: any[]; total: number }>,
         api.drives.list(token, `${tenantId ? `tenantId=${tenantId}&` : ''}limit=500`).catch(() => ({ data: [] })) as Promise<{ data: any[] }>,
+        api.interviews.list(token, 'limit=100').catch(() => ({ data: [] })) as Promise<{ data: any[] }>,
     ]);
 
-    // Build a map of drive details for enrichment (company name comes from drive relationship)
+    // Build a map of drive details
     const driveMap = new Map<string, { title: string; company: string }>();
     for (const d of (drivesRes.data || [])) {
         const companyRef = d.companies;
         const companyName = Array.isArray(companyRef)
             ? (companyRef[0]?.name || 'Unknown Company')
             : (companyRef?.name || 'Unknown Company');
-        driveMap.set(d.$id, {
-            title: d.title || '',
-            company: companyName,
+        driveMap.set(d.$id, { title: d.title || '', company: companyName });
+    }
+
+    // Build a map of applicationId -> interview
+    const interviewMap = new Map<string, InterviewInfo>();
+    for (const iv of (interviewsRes.data || [])) {
+        if (!iv.applicationId) continue;
+        interviewMap.set(iv.applicationId, {
+            id: iv.$id || '',
+            scheduledAt: iv.scheduledAt || '',
+            durationMinutes: iv.durationMinutes || 60,
+            format: iv.format || 'in_person',
+            roomId: iv.roomId || undefined,
+            interviewerName: iv.interviewerName || undefined,
+            status: iv.status || 'scheduled',
         });
     }
 
@@ -69,6 +99,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
             stage: a.stage || 'applied',
             appliedAt: a.appliedAt || a.$createdAt || '',
             updatedAt: a.$updatedAt || '',
+            interview: interviewMap.get(a.$id || ''),
         };
     });
 
@@ -195,6 +226,40 @@ export default function Applications() {
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* Interview Info */}
+                                {app.interview && app.interview.status !== 'cancelled' && (
+                                    <div className="mt-4 pt-4 border-t border-surface-100">
+                                        <div className="flex items-center justify-between bg-purple-50 rounded-xl px-4 py-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 rounded-lg bg-purple-100 text-purple-600">
+                                                    {formatIcon[app.interview.format] || <Calendar size={13} />}
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-medium text-purple-900">
+                                                        Interview {app.interview.format === 'video_call' ? '(Video Call)' : app.interview.format === 'phone' ? '(Phone)' : '(In Person)'}
+                                                    </p>
+                                                    <p className="text-xs text-purple-600">
+                                                        {app.interview.scheduledAt
+                                                            ? new Date(app.interview.scheduledAt).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+                                                            + ' at ' + new Date(app.interview.scheduledAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+                                                            : 'Date TBD'}
+                                                        {' · '}{app.interview.durationMinutes} min
+                                                        {app.interview.interviewerName && ` · ${app.interview.interviewerName}`}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            {app.interview.format === 'video_call' && app.interview.roomId && (
+                                                <Link
+                                                    to={`/interview/${app.interview.roomId}`}
+                                                    className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors"
+                                                >
+                                                    Join
+                                                </Link>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Progress Steps */}
                                 {app.stage !== 'rejected' && (

@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Plus, Megaphone, Clock, Pin, Eye, Trash2, Send } from 'lucide-react';
 import { Button, Card, Badge, Modal, Input, Textarea, EmptyState } from '@careernest/ui';
-import type { MetaFunction, LoaderFunctionArgs } from '@remix-run/node';
+import type { MetaFunction, LoaderFunctionArgs, ActionFunctionArgs } from '@remix-run/node';
 import { json, redirect } from '@remix-run/node';
-import { useLoaderData } from '@remix-run/react';
+import { useLoaderData, useActionData, useNavigation, Form, useFetcher } from '@remix-run/react';
 import { requireUserSession } from '~/auth.server';
 import { api } from '@careernest/lib';
 
@@ -36,12 +36,65 @@ export async function loader({ request }: LoaderFunctionArgs) {
         author: a.author || a.createdBy || '',
     }));
 
-    return json({ announcements });
+    return json({ announcements, tenantId, userRole: user.role });
+}
+
+type ActionData = { success?: boolean; error?: string };
+
+export async function action({ request }: ActionFunctionArgs) {
+    const { token, user } = await requireUserSession(request);
+    if (user.role !== 'tpo' || !user.tenantId) {
+        return json<ActionData>({ error: 'Only TPOs can manage announcements.' }, { status: 403 });
+    }
+
+    const formData = await request.formData();
+    const intent = formData.get('_action');
+
+    if (intent === 'create') {
+        const title = String(formData.get('title') || '').trim();
+        const body = String(formData.get('body') || '').trim();
+
+        if (!title || !body) {
+            return json<ActionData>({ error: 'Title and message are required.' }, { status: 400 });
+        }
+
+        try {
+            await api.announcements.create(token, { title, body, tenantId: user.tenantId });
+            return json<ActionData>({ success: true });
+        } catch (err: any) {
+            return json<ActionData>({ error: err?.message || 'Failed to create announcement.' }, { status: 500 });
+        }
+    }
+
+    if (intent === 'delete') {
+        const announcementId = String(formData.get('announcementId') || '');
+        if (!announcementId) {
+            return json<ActionData>({ error: 'Announcement ID is required.' }, { status: 400 });
+        }
+        try {
+            await api.announcements.delete(token, announcementId);
+            return json<ActionData>({ success: true });
+        } catch (err: any) {
+            return json<ActionData>({ error: err?.message || 'Failed to delete announcement.' }, { status: 500 });
+        }
+    }
+
+    return json<ActionData>({ error: 'Unknown action.' }, { status: 400 });
 }
 
 export default function Announcements() {
-    const { announcements } = useLoaderData<typeof loader>() as { announcements: Announcement[] };
+    const { announcements, userRole } = useLoaderData<typeof loader>() as { announcements: Announcement[]; userRole: string };
+    const actionData = useActionData<typeof action>() as ActionData | undefined;
+    const navigation = useNavigation();
+    const deleteFetcher = useFetcher();
     const [showModal, setShowModal] = useState(false);
+    const isTPO = userRole === 'tpo';
+    const isCreating = navigation.state === 'submitting' && navigation.formData?.get('_action') === 'create';
+
+    // Close modal on successful create
+    if (actionData?.success && showModal) {
+        setShowModal(false);
+    }
 
     return (
         <div className="space-y-6 animate-fade-in">
@@ -55,6 +108,13 @@ export default function Announcements() {
                     <Plus size={18} /> New Announcement
                 </Button>
             </div>
+
+            {/* Feedback */}
+            {actionData?.error && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm">
+                    {actionData.error}
+                </div>
+            )}
 
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -107,7 +167,17 @@ export default function Announcements() {
                                         </div>
                                         <p className="text-sm text-surface-600 leading-relaxed line-clamp-2">{announcement.body}</p>
                                     </div>
-                                    <button className="p-1.5 rounded-lg text-surface-300 hover:text-rose-500 hover:bg-rose-50 transition-colors flex-shrink-0" title="Delete">
+                                    <button className="p-1.5 rounded-lg text-surface-300 hover:text-rose-500 hover:bg-rose-50 transition-colors flex-shrink-0" title="Delete" type="button"
+                                        onClick={() => {
+                                            if (isTPO && confirm('Delete this announcement?')) {
+                                                deleteFetcher.submit(
+                                                    { _action: 'delete', announcementId: announcement.id },
+                                                    { method: 'post' }
+                                                );
+                                            }
+                                        }}
+                                        disabled={!isTPO}
+                                    >
                                         <Trash2 size={15} />
                                     </button>
                                 </div>
@@ -134,20 +204,15 @@ export default function Announcements() {
 
             {/* New Announcement Modal */}
             <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Create Announcement" size="lg">
-                <form className="space-y-5">
+                <Form method="post" className="space-y-5">
+                    <input type="hidden" name="_action" value="create" />
                     <Input name="title" label="Title" placeholder="e.g., Important Placement Update" required />
                     <Textarea name="body" label="Message" placeholder="Write your announcement here..." rows={5} required />
-                    <div className="flex items-center gap-3">
-                        <label className="flex items-center gap-2 text-sm text-surface-700 cursor-pointer">
-                            <input type="checkbox" className="rounded border-surface-300 text-primary-600 focus:ring-primary-500" />
-                            Pin this announcement
-                        </label>
-                    </div>
                     <div className="flex justify-end gap-3 pt-4 border-t border-surface-100">
                         <Button variant="ghost" type="button" onClick={() => setShowModal(false)}>Cancel</Button>
-                        <Button type="submit"><Send size={16} /> Publish</Button>
+                        <Button type="submit" isLoading={isCreating}><Send size={16} /> Publish</Button>
                     </div>
-                </form>
+                </Form>
             </Modal>
         </div>
     );

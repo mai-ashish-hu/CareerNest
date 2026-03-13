@@ -63,6 +63,10 @@ export const env = {
         process.env.COLLECTION_CAMPUS_CHAT_CHANNELS || 'campus_chat_channels',
     COLLECTION_CAMPUS_CHAT_MESSAGES:
         process.env.COLLECTION_CAMPUS_CHAT_MESSAGES || 'campus_chat_messages',
+    COLLECTION_INTERVIEWS:
+        process.env.COLLECTION_INTERVIEWS || 'interviews',
+    COLLECTION_INTERVIEW_SIGNALS:
+        process.env.COLLECTION_INTERVIEW_SIGNALS || 'interview_signals',
 
     // Storage
     APPWRITE_BUCKET_RESUMES: process.env.APPWRITE_BUCKET_RESUMES || 'resumes',
@@ -70,6 +74,8 @@ export const env = {
         process.env.APPWRITE_BUCKET_PROFILE_PHOTOS || 'profilePhoto',
     APPWRITE_BUCKET_CERTIFICATES:
         process.env.APPWRITE_BUCKET_CERTIFICATES || 'certificates',
+    APPWRITE_BUCKET_COURSE_VIDEOS:
+        process.env.APPWRITE_BUCKET_COURSE_VIDEOS || 'course_videos',
 
     // Email
     SMTP_HOST: process.env.SMTP_HOST || '',

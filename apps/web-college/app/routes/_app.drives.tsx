@@ -3,7 +3,7 @@ import { Plus, Search, Briefcase, Calendar, IndianRupee, MapPin, Eye, Pencil, Bu
 import { Button, Card, Badge, Modal, Input, Textarea, EmptyState, Avatar } from '@careernest/ui';
 import type { MetaFunction, LoaderFunctionArgs, ActionFunctionArgs } from '@remix-run/node';
 import { json, redirect } from '@remix-run/node';
-import { useLoaderData, useFetcher } from '@remix-run/react';
+import { useLoaderData, useFetcher, Link as RemixLink } from '@remix-run/react';
 import { requireUserSession } from '~/auth.server';
 import { api } from '@careernest/lib';
 
@@ -256,9 +256,13 @@ export default function Drives() {
                                     </a>
                                 ) : <span />}
                                 <div className="flex items-center gap-1">
-                                    <button className="p-1.5 rounded-lg text-surface-400 hover:text-primary-600 hover:bg-primary-50 transition-colors" title="View">
+                                    <RemixLink
+                                        to={`/drives/${drive.id}`}
+                                        className="p-1.5 rounded-lg text-surface-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
+                                        title="Manage Applications"
+                                    >
                                         <Eye size={15} />
-                                    </button>
+                                    </RemixLink>
                                     <button className="p-1.5 rounded-lg text-surface-400 hover:text-primary-600 hover:bg-primary-50 transition-colors" title="Edit">
                                         <Pencil size={15} />
                                     </button>

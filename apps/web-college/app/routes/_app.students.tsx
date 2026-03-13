@@ -41,7 +41,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         name: d.departmentName || d.name || '',
     }));
 
-    const students: Student[] = (studentsRes.data || []).map((s: any) => {
+    const students: Student[] = ((studentsRes.data || []).map((s: any) => {
         const dept = s.departements || s.departments || s.department;
         let departmentName = '';
         let departmentId = '';
@@ -64,6 +64,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
             phoneNumber: s.phoneNumber ?? 0,
             address: s.address || '',
         };
+    }) as Student[]).filter((s: Student) => {
+        // TPO_ASSISTANT can only see students in their own department
+        if (user.role === 'tpo_assistant' && user.department) {
+            return s.department === user.department || s.departmentId === user.department;
+        }
+        return true;
     });
 
     return json({ students, departments });

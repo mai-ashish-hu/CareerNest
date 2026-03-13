@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Save, User, Bell, Shield, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Save, User, Bell, Shield, CheckCircle2, Info } from 'lucide-react';
 import { Button, Card, Input } from '@careernest/ui';
 import type { MetaFunction, LoaderFunctionArgs, ActionFunctionArgs } from '@remix-run/node';
 import { json } from '@remix-run/node';
@@ -186,84 +186,164 @@ export default function Settings() {
                     )}
 
                     {activeSection === 'notifications' && (
-                        <Card className="student-surface-card">
-                            <h3 className="font-semibold text-surface-900 mb-6">Notification Preferences</h3>
-                            <div className="space-y-4">
-                                <label className="flex items-center justify-between p-4 rounded-xl border border-surface-200 hover:bg-surface-50 cursor-pointer">
-                                    <div>
-                                        <p className="text-sm font-medium text-surface-700">New Drive Notifications</p>
-                                        <p className="text-xs text-surface-400">Get notified when new eligible drives are posted</p>
-                                    </div>
-                                    <input type="checkbox" defaultChecked className="rounded border-surface-300 text-primary-600 focus:ring-primary-500 h-5 w-5" />
-                                </label>
-                                <label className="flex items-center justify-between p-4 rounded-xl border border-surface-200 hover:bg-surface-50 cursor-pointer">
-                                    <div>
-                                        <p className="text-sm font-medium text-surface-700">Application Status Updates</p>
-                                        <p className="text-xs text-surface-400">Get notified when your application stage changes</p>
-                                    </div>
-                                    <input type="checkbox" defaultChecked className="rounded border-surface-300 text-primary-600 focus:ring-primary-500 h-5 w-5" />
-                                </label>
-                                <label className="flex items-center justify-between p-4 rounded-xl border border-surface-200 hover:bg-surface-50 cursor-pointer">
-                                    <div>
-                                        <p className="text-sm font-medium text-surface-700">Announcements</p>
-                                        <p className="text-xs text-surface-400">Get notified about placement cell announcements</p>
-                                    </div>
-                                    <input type="checkbox" defaultChecked className="rounded border-surface-300 text-primary-600 focus:ring-primary-500 h-5 w-5" />
-                                </label>
-                                <label className="flex items-center justify-between p-4 rounded-xl border border-surface-200 hover:bg-surface-50 cursor-pointer">
-                                    <div>
-                                        <p className="text-sm font-medium text-surface-700">Drive Deadline Reminders</p>
-                                        <p className="text-xs text-surface-400">Receive reminders before drive application deadlines</p>
-                                    </div>
-                                    <input type="checkbox" defaultChecked className="rounded border-surface-300 text-primary-600 focus:ring-primary-500 h-5 w-5" />
-                                </label>
-                                <label className="flex items-center justify-between p-4 rounded-xl border border-surface-200 hover:bg-surface-50 cursor-pointer">
-                                    <div>
-                                        <p className="text-sm font-medium text-surface-700">Email Notifications</p>
-                                        <p className="text-xs text-surface-400">Receive important updates via email</p>
-                                    </div>
-                                    <input type="checkbox" className="rounded border-surface-300 text-primary-600 focus:ring-primary-500 h-5 w-5" />
-                                </label>
-                                <div className="flex justify-end pt-4 border-t border-surface-100">
-                                    <Button><Save size={16} /> Save Preferences</Button>
-                                </div>
-                            </div>
-                        </Card>
+                        <NotificationPreferences />
                     )}
 
                     {activeSection === 'privacy' && (
-                        <Card className="student-surface-card">
-                            <h3 className="font-semibold text-surface-900 mb-6">Privacy Settings</h3>
-                            <div className="space-y-4">
-                                <label className="flex items-center justify-between p-4 rounded-xl border border-surface-200 hover:bg-surface-50 cursor-pointer">
-                                    <div>
-                                        <p className="text-sm font-medium text-surface-700">Profile Visible to Companies</p>
-                                        <p className="text-xs text-surface-400">Allow companies to view your profile during drives</p>
-                                    </div>
-                                    <input type="checkbox" defaultChecked className="rounded border-surface-300 text-primary-600 focus:ring-primary-500 h-5 w-5" />
-                                </label>
-                                <label className="flex items-center justify-between p-4 rounded-xl border border-surface-200 hover:bg-surface-50 cursor-pointer">
-                                    <div>
-                                        <p className="text-sm font-medium text-surface-700">Show Resume to Recruiters</p>
-                                        <p className="text-xs text-surface-400">Allow recruiters to download your resume</p>
-                                    </div>
-                                    <input type="checkbox" defaultChecked className="rounded border-surface-300 text-primary-600 focus:ring-primary-500 h-5 w-5" />
-                                </label>
-                                <label className="flex items-center justify-between p-4 rounded-xl border border-surface-200 hover:bg-surface-50 cursor-pointer">
-                                    <div>
-                                        <p className="text-sm font-medium text-surface-700">Show Contact Information</p>
-                                        <p className="text-xs text-surface-400">Display your phone number and email to placement cell</p>
-                                    </div>
-                                    <input type="checkbox" defaultChecked className="rounded border-surface-300 text-primary-600 focus:ring-primary-500 h-5 w-5" />
-                                </label>
-                                <div className="flex justify-end pt-4 border-t border-surface-100">
-                                    <Button><Save size={16} /> Save Settings</Button>
-                                </div>
-                            </div>
-                        </Card>
+                        <PrivacyPreferences />
                     )}
                 </div>
             </div>
         </div>
+    );
+}
+
+const NOTIF_STORAGE_KEY = 'careernest_notification_prefs';
+const PRIVACY_STORAGE_KEY = 'careernest_privacy_prefs';
+
+interface NotifPrefs {
+    newDrives: boolean;
+    statusUpdates: boolean;
+    announcements: boolean;
+    deadlineReminders: boolean;
+    emailNotifications: boolean;
+}
+
+const defaultNotifPrefs: NotifPrefs = {
+    newDrives: true,
+    statusUpdates: true,
+    announcements: true,
+    deadlineReminders: true,
+    emailNotifications: false,
+};
+
+function useLocalPrefs<T>(key: string, defaults: T): [T, (prefs: T) => void, boolean] {
+    const [prefs, setPrefs] = useState<T>(defaults);
+    const [saved, setSaved] = useState(false);
+
+    useEffect(() => {
+        try {
+            const stored = localStorage.getItem(key);
+            if (stored) setPrefs(JSON.parse(stored));
+        } catch { /* ignore */ }
+    }, [key]);
+
+    const save = useCallback((newPrefs: T) => {
+        setPrefs(newPrefs);
+        localStorage.setItem(key, JSON.stringify(newPrefs));
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+    }, [key]);
+
+    return [prefs, save, saved];
+}
+
+function NotificationPreferences() {
+    const [prefs, save, saved] = useLocalPrefs<NotifPrefs>(NOTIF_STORAGE_KEY, defaultNotifPrefs);
+    const [local, setLocal] = useState<NotifPrefs>(prefs);
+
+    useEffect(() => { setLocal(prefs); }, [prefs]);
+
+    const toggle = (key: keyof NotifPrefs) => setLocal((p) => ({ ...p, [key]: !p[key] }));
+
+    const items: { key: keyof NotifPrefs; label: string; desc: string }[] = [
+        { key: 'newDrives', label: 'New Drive Notifications', desc: 'Get notified when new eligible drives are posted' },
+        { key: 'statusUpdates', label: 'Application Status Updates', desc: 'Get notified when your application stage changes' },
+        { key: 'announcements', label: 'Announcements', desc: 'Get notified about placement cell announcements' },
+        { key: 'deadlineReminders', label: 'Drive Deadline Reminders', desc: 'Receive reminders before drive application deadlines' },
+        { key: 'emailNotifications', label: 'Email Notifications', desc: 'Receive important updates via email' },
+    ];
+
+    return (
+        <Card className="student-surface-card">
+            <h3 className="font-semibold text-surface-900 mb-2">Notification Preferences</h3>
+            <p className="text-xs text-surface-400 mb-5 flex items-center gap-1.5">
+                <Info size={12} /> Preferences are stored locally on this device.
+            </p>
+            {saved && (
+                <div className="mb-4 flex items-center gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm">
+                    <CheckCircle2 size={16} /> Preferences saved.
+                </div>
+            )}
+            <div className="space-y-4">
+                {items.map((item) => (
+                    <label key={item.key} className="flex items-center justify-between p-4 rounded-xl border border-surface-200 hover:bg-surface-50 cursor-pointer">
+                        <div>
+                            <p className="text-sm font-medium text-surface-700">{item.label}</p>
+                            <p className="text-xs text-surface-400">{item.desc}</p>
+                        </div>
+                        <input
+                            type="checkbox"
+                            checked={local[item.key]}
+                            onChange={() => toggle(item.key)}
+                            className="rounded border-surface-300 text-primary-600 focus:ring-primary-500 h-5 w-5"
+                        />
+                    </label>
+                ))}
+                <div className="flex justify-end pt-4 border-t border-surface-100">
+                    <Button type="button" onClick={() => save(local)}><Save size={16} /> Save Preferences</Button>
+                </div>
+            </div>
+        </Card>
+    );
+}
+
+interface PrivacyPrefs {
+    profileVisible: boolean;
+    showResume: boolean;
+    showContact: boolean;
+}
+
+const defaultPrivacyPrefs: PrivacyPrefs = {
+    profileVisible: true,
+    showResume: true,
+    showContact: true,
+};
+
+function PrivacyPreferences() {
+    const [prefs, save, saved] = useLocalPrefs<PrivacyPrefs>(PRIVACY_STORAGE_KEY, defaultPrivacyPrefs);
+    const [local, setLocal] = useState<PrivacyPrefs>(prefs);
+
+    useEffect(() => { setLocal(prefs); }, [prefs]);
+
+    const toggle = (key: keyof PrivacyPrefs) => setLocal((p) => ({ ...p, [key]: !p[key] }));
+
+    const items: { key: keyof PrivacyPrefs; label: string; desc: string }[] = [
+        { key: 'profileVisible', label: 'Profile Visible to Companies', desc: 'Allow companies to view your profile during drives' },
+        { key: 'showResume', label: 'Show Resume to Recruiters', desc: 'Allow recruiters to download your resume' },
+        { key: 'showContact', label: 'Show Contact Information', desc: 'Display your phone number and email to placement cell' },
+    ];
+
+    return (
+        <Card className="student-surface-card">
+            <h3 className="font-semibold text-surface-900 mb-2">Privacy Settings</h3>
+            <p className="text-xs text-surface-400 mb-5 flex items-center gap-1.5">
+                <Info size={12} /> Preferences are stored locally on this device.
+            </p>
+            {saved && (
+                <div className="mb-4 flex items-center gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm">
+                    <CheckCircle2 size={16} /> Settings saved.
+                </div>
+            )}
+            <div className="space-y-4">
+                {items.map((item) => (
+                    <label key={item.key} className="flex items-center justify-between p-4 rounded-xl border border-surface-200 hover:bg-surface-50 cursor-pointer">
+                        <div>
+                            <p className="text-sm font-medium text-surface-700">{item.label}</p>
+                            <p className="text-xs text-surface-400">{item.desc}</p>
+                        </div>
+                        <input
+                            type="checkbox"
+                            checked={local[item.key]}
+                            onChange={() => toggle(item.key)}
+                            className="rounded border-surface-300 text-primary-600 focus:ring-primary-500 h-5 w-5"
+                        />
+                    </label>
+                ))}
+                <div className="flex justify-end pt-4 border-t border-surface-100">
+                    <Button type="button" onClick={() => save(local)}><Save size={16} /> Save Settings</Button>
+                </div>
+            </div>
+        </Card>
     );
 }

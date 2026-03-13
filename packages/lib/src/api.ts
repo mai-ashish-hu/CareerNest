@@ -56,6 +56,8 @@ export const api = {
         getById: (token: string, id: string) => apiFetch(`/drives/${id}`, { token }),
         create: (token: string, data: unknown) => apiFetch('/drives', { method: 'POST', body: JSON.stringify(data), token }),
         update: (token: string, id: string, data: unknown) => apiFetch(`/drives/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        getApplications: (token: string, driveId: string, params?: string) =>
+            apiFetch(`/drives/${driveId}/applications${params ? `?${params}` : ''}`, { token }),
     },
     applications: {
         list: (token: string, params?: string) => apiFetch(`/applications${params ? `?${params}` : ''}`, { token }),
@@ -81,12 +83,31 @@ export const api = {
     },
     courses: {
         list: (token: string, params?: string) => apiFetch(`/courses${params ? `?${params}` : ''}`, { token }),
+        getById: (token: string, id: string) => apiFetch(`/courses/${id}`, { token }),
         create: (token: string, data: unknown) => apiFetch('/courses', { method: 'POST', body: JSON.stringify(data), token }),
+        update: (token: string, id: string, data: unknown) => apiFetch(`/courses/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
         delete: (token: string, id: string) => apiFetch(`/courses/${id}`, { method: 'DELETE', token }),
+    },
+    interviews: {
+        list: (token: string, params?: string) => apiFetch(`/interviews${params ? `?${params}` : ''}`, { token }),
+        getById: (token: string, id: string) => apiFetch(`/interviews/${id}`, { token }),
+        create: (token: string, data: unknown) => apiFetch('/interviews', { method: 'POST', body: JSON.stringify(data), token }),
+        update: (token: string, id: string, data: unknown) => apiFetch(`/interviews/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        cancel: (token: string, id: string) => apiFetch(`/interviews/${id}`, { method: 'DELETE', token }),
+        getRoomDetails: (token: string, roomId: string) => apiFetch(`/interviews/room/${roomId}`, { token }),
+    },
+    interviewSignal: {
+        send: (token: string, roomId: string, data: { type: string; targetId?: string; data: unknown }) =>
+            apiFetch(`/interview-signal/rooms/${roomId}/signals`, { method: 'POST', body: JSON.stringify(data), token }),
+        poll: (token: string, roomId: string, since?: string) =>
+            apiFetch(`/interview-signal/rooms/${roomId}/signals${since ? `?since=${encodeURIComponent(since)}` : ''}`, { token }),
+        cleanup: (token: string, roomId: string) =>
+            apiFetch(`/interview-signal/rooms/${roomId}`, { method: 'DELETE', token }),
     },
     announcements: {
         list: (token: string, params?: string) => apiFetch(`/announcements${params ? `?${params}` : ''}`, { token }),
         create: (token: string, data: unknown) => apiFetch('/announcements', { method: 'POST', body: JSON.stringify(data), token }),
+        update: (token: string, id: string, data: unknown) => apiFetch(`/announcements/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
         delete: (token: string, id: string) => apiFetch(`/announcements/${id}`, { method: 'DELETE', token }),
     },
     analytics: {

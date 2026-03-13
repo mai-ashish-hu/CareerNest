@@ -7,7 +7,7 @@ import { mapLabelsToRole } from '../utils/label-role';
 import type { Role } from '@careernest/shared';
 
 export class AuthService {
-    private signToken(payload: { userId: string; email: string; name: string; role: Role; tenantId: string | null; companyId?: string | null }) {
+    private signToken(payload: { userId: string; email: string; name: string; role: Role; tenantId: string | null; companyId?: string | null; department?: string | null }) {
         return jwt.sign(payload, env.JWT_SECRET, { expiresIn: '24h' });
     }
 
@@ -161,6 +161,11 @@ export class AuthService {
     }
 
     private async resolveAdminTenantId(email: string): Promise<string | null> {
+        const ctx = await this.resolveAdminContext(email);
+        return ctx.tenantId;
+    }
+
+    private async resolveAdminContext(email: string): Promise<{ tenantId: string | null; department: string | null }> {
         const userDocs = await databases.listDocuments(
             env.APPWRITE_DATABASE_ID,
             env.COLLECTION_ADMINS,
@@ -168,12 +173,14 @@ export class AuthService {
         );
 
         if (userDocs.total === 0) {
-            return null;
+            return { tenantId: null, department: null };
         }
 
         const userDoc = userDocs.documents[0];
         const tenantRef = this.extractTenantId(userDoc.colleges) ?? userDoc.tenantId ?? null;
-        return this.normalizeTenantId(tenantRef);
+        const tenantId = await this.normalizeTenantId(tenantRef);
+        const department = (userDoc.department as string | undefined) ?? null;
+        return { tenantId, department };
     }
 
     /**
@@ -218,6 +225,7 @@ export class AuthService {
         // Look up tenantId from the appropriate collection based on role
         let tenantId: string | null = null;
         let companyId: string | null = null;
+        let department: string | null = null;
         try {
             if (role === 'student') {
                 tenantId = await this.resolveStudentTenantId(appwriteUser.email);
@@ -226,7 +234,9 @@ export class AuthService {
                 tenantId = companyContext.tenantId;
                 companyId = companyContext.companyId;
             } else {
-                tenantId = await this.resolveAdminTenantId(appwriteUser.email);
+                const adminCtx = await this.resolveAdminContext(appwriteUser.email);
+                tenantId = adminCtx.tenantId;
+                department = adminCtx.department;
             }
         } catch (error) {
             console.error('[Auth] Failed to lookup tenantId:', error);
@@ -240,6 +250,7 @@ export class AuthService {
             role,
             tenantId,
             companyId,
+            department,
         });
 
         return {
@@ -251,6 +262,7 @@ export class AuthService {
                 role,
                 tenantId,
                 companyId,
+                department,
             },
         };
     }
